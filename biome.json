@@ -15,12 +15,14 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
+      "!**/.omc",
       "!**/.omx",
       "!**/node_modules",
       "!**/.next",
       "!**/coverage",
       "!apps/web/next-env.d.ts",
-      "!artifacts"
+      "!artifacts",
+      "!data"
     ]
   },
   "javascript": {

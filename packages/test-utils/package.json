@@ -7,7 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@news-aggregator/core": "workspace:*"
+    "@news-aggregator/core": "workspace:*",
+    "mongodb": "^7.1.1",
+    "mongodb-memory-server": "^11.0.1"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

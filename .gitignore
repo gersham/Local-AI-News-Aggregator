@@ -1,5 +1,6 @@
 .DS_Store
 .omx/
+.omc/
 apps/web/.git/
 
 node_modules/

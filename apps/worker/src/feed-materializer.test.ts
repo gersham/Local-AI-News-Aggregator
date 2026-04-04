@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { buildSourceFixture } from '@news-aggregator/test-utils';
+import { loadFeedSnapshotFromMongo } from '@news-aggregator/core';
+import {
+  buildSourceFixture,
+  createMongoTestContext,
+} from '@news-aggregator/test-utils';
 import { describe, expect, it } from 'vitest';
 import {
   materializeFeedFromArtifacts,
@@ -86,18 +87,28 @@ describe('materializeFeedFromArtifacts', () => {
 });
 
 describe('writeFeedSnapshot', () => {
-  it('writes a pretty-printed snapshot to disk', async () => {
-    const root = join(tmpdir(), `feed-snapshot-write-${Date.now()}`);
-    const path = join(root, 'feed-snapshot.json');
+  it('writes the latest snapshot to MongoDB', async () => {
+    const mongo = await createMongoTestContext();
 
-    await writeFeedSnapshot(path, {
-      entries: [],
-      generatedAt: '2026-04-04T15:00:00.000Z',
+    await writeFeedSnapshot(
+      {
+        entries: [],
+        generatedAt: '2026-04-04T15:00:00.000Z',
+      },
+      {
+        dbName: mongo.dbName,
+        uri: mongo.uri,
+      },
+    );
+
+    const state = await loadFeedSnapshotFromMongo({
+      client: mongo.client,
+      dbName: mongo.dbName,
     });
 
-    expect(existsSync(path)).toBe(true);
-    expect(readFileSync(path, 'utf8')).toContain('"generatedAt"');
+    expect(state.snapshot.generatedAt).toBe('2026-04-04T15:00:00.000Z');
+    expect(state.storageTarget).toContain(mongo.dbName);
 
-    rmSync(root, { recursive: true, force: true });
-  });
+    await mongo.cleanup();
+  }, 15000);
 });

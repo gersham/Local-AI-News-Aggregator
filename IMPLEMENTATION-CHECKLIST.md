@@ -34,15 +34,17 @@
 
 - [x] Slice 1: config loading and runtime validation.
 - [x] Slice 2: admin/config API and persistence.
+- [x] Extend the `/sources` admin UI so source definitions, topic lists, Exa filters, and weights are editable.
 - [x] Slice 3: public-source ingestion and artifact capture.
 - [x] Slice 4: X-search ingestion through xAI.
 - [x] Slice 5: clustering and dedupe.
 - [x] Slice 6: ranking and explainable feed.
-- [ ] Slice 7: browser-auth source ingestion after explicit opt-in and later manual testing.
-- [x] Slice 8: podcast story selection and spoken script generation.
-- [x] Slice 9: ElevenLabs audio generation and stitching.
-- [x] Slice 10: Sonos playback orchestration and restore behavior.
-- [ ] Slice 11: end-to-end scheduled run.
+- [x] Slice 7: end-to-end discovery/enrichment orchestration for active public/X sources.
+- [ ] Slice 8: browser-auth source ingestion after explicit opt-in and later manual testing.
+- [x] Slice 9: podcast story selection and spoken script generation.
+- [x] Slice 10: ElevenLabs audio generation and stitching.
+- [x] Slice 11: Sonos playback orchestration and restore behavior.
+- [ ] Slice 12: end-to-end scheduled run.
 
 - [x] Add CLI debug mode for transcript preview.
 - [x] Add production-script output with voice-role and delivery cues for the briefing CLI.
@@ -52,6 +54,10 @@
 - [x] Add Sonos probe and play CLI commands around the local network control path.
 - [x] Clear live Sonos discovery through the Node client or capture a stable direct speaker host.
 - [x] Add a one-shot `briefing:deliver` command for external schedulers or manual runs.
+- [x] Add a one-shot `briefing:generate` command that runs ingest plus MP3 generation without Sonos playback.
+- [x] Add a one-shot `ingest:run` command for live source discovery, Exa-first enrichment, artifact capture, and feed-snapshot refresh.
+- [x] Persist normalized stories and clusters as first-class MongoDB collections during ingest runs.
+- [x] Persist generated podcast runs in MongoDB and expose them through a `/podcasts` archive page.
 
 ## Quality Gates
 
@@ -60,3 +66,4 @@
 - [ ] No secrets are checked into source control.
 - [ ] No workaround code lands for missing access or missing tooling.
 - [ ] Every major run path emits operational logs and artifacts.
+- [x] Replace file-backed state with MongoDB-backed persistence for source registry, feed snapshot, discovery artifacts, ingest runs, stories, and clusters.

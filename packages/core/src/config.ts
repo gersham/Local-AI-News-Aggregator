@@ -5,6 +5,8 @@ export const runtimeEnvSchema = z.object({
   APP_BASE_URL: z.url(),
   MORNING_BRIEFING_TIME: z.string().regex(/^\d{2}:\d{2}$/),
   MORNING_BRIEFING_TIMEZONE: z.string().min(1),
+  MONGODB_URI: z.string().min(1),
+  MONGODB_DB_NAME: z.string().min(1).optional(),
   XAI_API_KEY: z.string().min(1),
   EXA_API_KEY: z.string().min(1),
   ELEVENLABS_API_KEY: z.string().min(1),
@@ -55,6 +57,10 @@ export function loadRuntimeConfig(input: Record<string, string | undefined>) {
         secondaryVoiceId: env.ELEVENLABS_SECONDARY_VOICE_ID,
         tertiaryVoiceId: env.ELEVENLABS_TERTIARY_VOICE_ID,
       },
+    },
+    database: {
+      dbName: env.MONGODB_DB_NAME,
+      uri: env.MONGODB_URI,
     },
     sonos: {
       targetHost: env.SONOS_TARGET_HOST,

@@ -4,6 +4,7 @@ import {
   buildXSearchPlans,
   createXSearchRequest,
   executeXSearchPlan,
+  getXSearchOutputText,
 } from './x-search';
 
 describe('buildXSearchPlans', () => {
@@ -128,5 +129,25 @@ describe('executeXSearchPlan', () => {
       },
       sourceId: 'x-my-feed',
     });
+  });
+});
+
+describe('getXSearchOutputText', () => {
+  it('falls back to assistant message content when output_text is absent', () => {
+    expect(
+      getXSearchOutputText({
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                text: '{"stories":[{"title":"AI funding climbs again","url":"https://example.com/ai-funding","publishedAt":"2026-04-04","summary":"Funding remains strong.","topics":["ai"],"regions":[]}]}',
+                type: 'output_text',
+              },
+            ],
+          },
+        ],
+      }),
+    ).toContain('AI funding climbs again');
   });
 });

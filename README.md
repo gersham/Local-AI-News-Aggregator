@@ -1,6 +1,6 @@
 # News Aggregator
 
-Local-first personal news aggregation system with a ranked web feed, admin/config control plane, and a scheduled morning audio briefing for Sonos.
+Local-first personal news aggregation system with a ranked web feed, admin/config control plane, and a morning audio briefing pipeline that can be generated on demand and optionally delivered to Sonos.
 
 ## Current Status
 
@@ -9,7 +9,7 @@ This repository now includes:
 1. The TypeScript workspace and package boundaries.
 2. Verified local tool and service access.
 3. Runtime config validation and source registry validation.
-4. Writable source registry persistence with a minimal web control surface at `/sources`.
+4. Writable source registry persistence with a web control surface at `/sources`.
 5. Public-source fetch planning and raw artifact capture primitives in the worker.
 6. xAI X-search request planning and execution primitives in the worker.
 7. Shared story normalization, URL cleanup, and first-pass clustering/dedupe logic.
@@ -17,8 +17,10 @@ This repository now includes:
 9. Morning briefing script generation with voice-role hints and ElevenLabs dialogue-plan output.
 10. Local audio artifact hosting plus live-validated Sonos probe/playback CLI commands.
 11. A one-shot delivery command that generates the MP3 and pushes it to Sonos.
+12. A live `ingest:run` worker command that scans active public/X sources, enriches public URLs through Exa-first extraction backed by a 30-day MongoDB article cache, writes artifacts, persists normalized stories and clusters, and refreshes the MongoDB-backed feed snapshot.
+13. A dashboard-triggered podcast generation flow that runs ingest plus MP3 generation without Sonos playback, and stores historical podcast runs in MongoDB for the `/podcasts` archive.
 
-Scheduled run orchestration is intentionally still pending.
+Scheduled run orchestration is intentionally not implemented in-repo; the expectation is that you will invoke the one-shot worker commands from your own scheduler.
 
 ## Product Goals
 
@@ -27,7 +29,7 @@ Scheduled run orchestration is intentionally still pending.
 - Provide an admin/config UI for sources, API keys, ranking controls, and operational tasks.
 - Generate a morning podcast from the top confirmed stories.
 - Open the morning podcast with the day weather for Lantzville, BC.
-- Play the briefing on Sonos at a scheduled time.
+- Support external scheduling of briefing generation and optional Sonos playback.
 - Run through Codex-compatible skills backed by deterministic TypeScript helpers.
 
 ## Architecture Direction
@@ -41,6 +43,7 @@ Scheduled run orchestration is intentionally still pending.
 - External provider secrets live in `.env`.
 - Public article-body extraction should prefer Exa before any browser fetch.
 - Sonos playback can use room-name discovery or an explicit speaker host override.
+- The default live harvester now covers active public sources plus xAI-backed X search. Authenticated browser collectors remain deferred.
 
 ### Workspace Layout
 
@@ -50,7 +53,7 @@ Scheduled run orchestration is intentionally still pending.
 - `packages/skills`: Codex-compatible skill scaffolding and helper script entrypoints.
 - `packages/test-utils`: shared fixtures for TDD slices.
 - `config/`: checked-in example source definitions.
-- `data/`: local operational state such as SQLite.
+- `data/`: optional local scratch space and legacy-import inputs. Operational application state now lives in MongoDB.
 - `artifacts/`: fetched raw content, transcripts, audio, and run logs.
 - `scripts/`: repo-level verification and bootstrap scripts.
 
@@ -107,7 +110,7 @@ pnpm verify:tools
 pnpm verify:services
 ```
 
-`pnpm verify:services` is expected to fail until real credentials and runtime details are provided.
+`pnpm verify:services` is expected to fail until real credentials, MongoDB connectivity, and runtime details are provided.
 
 ### Development Commands
 
@@ -123,8 +126,10 @@ pnpm test:e2e
 ### Worker Debug Commands
 
 ```bash
+pnpm --filter @news-aggregator/worker ingest:run
 pnpm --filter @news-aggregator/worker briefing:preview
 pnpm --filter @news-aggregator/worker briefing:audio
+pnpm --filter @news-aggregator/worker briefing:generate
 pnpm --filter @news-aggregator/worker briefing:deliver
 pnpm --filter @news-aggregator/worker elevenlabs:probe
 pnpm --filter @news-aggregator/worker audio:serve
@@ -132,10 +137,14 @@ pnpm --filter @news-aggregator/worker sonos:probe
 pnpm --filter @news-aggregator/worker sonos:play-briefing
 ```
 
+- `ingest:run` executes the current front-of-queue pipeline: source discovery, raw artifact capture, Mongo-backed Exa-first article enrichment with 30-day URL-hash caching, normalization, clustering, ranking, and MongoDB feed-snapshot refresh.
+- Exa topic searches are constrained to content published in the last 24 hours.
+- `ingest:run` now upserts first-class `stories` and `story_clusters` collections in MongoDB alongside the latest feed snapshot, so downstream ranking, debugging, and later feedback loops can work from durable normalized records instead of only a single snapshot.
 - `briefing:preview` prints the current morning briefing transcript using the ranked feed snapshot plus live Lantzville weather.
 - The preview output is a production script: each block includes the reader role, intended voice profile, and inline delivery cues such as `[calm]` and `[short pause]`.
 - `briefing:audio` prints that same script, writes `artifacts/briefings/<date>/morning-briefing.dialogue.json`, and then attempts to synthesize `artifacts/briefings/<date>/morning-briefing.mp3` through the ElevenLabs Text to Dialogue API.
-- `briefing:deliver` generates the latest morning briefing MP3 and immediately instructs Sonos to play it using the hosted audio URL from `AUDIO_HOST_BASE_URL`.
+- `briefing:generate` runs `ingest:run`, then produces the MP3 and stores a historical `podcast_runs` record in MongoDB without sending anything to Sonos. This is the intended scheduler-safe generation command.
+- `briefing:deliver` generates the latest morning briefing MP3 and immediately instructs Sonos to play it using the hosted audio URL from `AUDIO_HOST_BASE_URL`. It assumes that URL is already being served, for example by a separately running `audio:serve` process.
 - `elevenlabs:probe` runs a minimal voice lookup plus a tiny two-speaker dialogue generation, then writes `artifacts/briefings/<date>/elevenlabs-probe.json` and, on success, `artifacts/briefings/<date>/elevenlabs-probe.mp3`.
 - `audio:serve` hosts the `artifacts/` tree over HTTP for Sonos to fetch, using the port from `AUDIO_HOST_BASE_URL` and binding on `0.0.0.0`.
 - `sonos:probe` tries live local-network discovery, reports discovered room names, and identifies the configured target room.
@@ -145,10 +154,12 @@ pnpm --filter @news-aggregator/worker sonos:play-briefing
 
 ### Current Web Surface
 
-- `/`: control-plane landing page
+- `/`: control-plane landing page with podcast generation controls
 - `/feed`: ranked feed preview
-- `/sources`: source rollout and enablement controls
+- `/podcasts`: historical generated podcast runs with MP3 download links and stored file paths
+- `/sources`: source rollout plus editable topics, regions, queries, Exa filters, notes, and weights
 - `/api/feed`: current feed snapshot read endpoint
+- `/api/podcasts/[runId]/audio`: MP3 download/stream endpoint for a stored podcast run
 - `/api/sources`: current source registry read/update endpoint
 
 ## Security Caveat
@@ -157,6 +168,7 @@ The initial product direction assumes home-network use without app-level authent
 
 ## Planned Next Steps
 
-1. Wire real worker ingestion runs to persist `data/feed-snapshot.json`.
-2. Add podcast story selection over ranked feed clusters.
+1. Continue tightening source-quality heuristics so broad Exa and Hacker News discovery prefers truly relevant regional/topic articles instead of merely article-shaped pages.
+2. Add first-class operator-feedback collections and learned ranking signals on top of the now-persisted stories and clusters.
 3. Keep browser-auth collectors deferred until later manual testing.
+4. Improve body-text cleanup so feed summaries and briefing copy derive from the first strong factual sentence instead of raw page chrome when Exa extraction is noisy.

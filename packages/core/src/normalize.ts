@@ -34,6 +34,54 @@ function hashValue(value: string) {
   return createHash('sha256').update(value).digest('hex').slice(0, 12);
 }
 
+const metaSummaryLeadPattern =
+  /^(?:the\s+)?(?:webpage|article|report|story|piece|coverage)\s+(?:reports|says|notes|details|describes|explains|outlines|covers|mentions|states)\s+(?:that\s+)?/iu;
+const metaSummarySentencePattern =
+  /^(?:the\s+)?(?:webpage|article|report|story|piece|coverage)\s+(?:reports|says|notes|details|describes|explains|outlines|covers|mentions|states|highlights)\b/iu;
+
+function stripMetaSummaryPrefix(input: string) {
+  return input.replace(metaSummaryLeadPattern, '');
+}
+
+function isMetaSummarySentence(input: string) {
+  return metaSummarySentencePattern.test(input.trim());
+}
+
+function capitalizeSummaryLead(input: string) {
+  return input.replace(/^\p{Ll}/u, (character) => character.toUpperCase());
+}
+
+export function normalizeStorySummary(input: string) {
+  const normalized = input.replace(/\s+/gu, ' ').trim();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (sentences.length === 0) {
+    return capitalizeSummaryLead(stripMetaSummaryPrefix(normalized).trim());
+  }
+
+  const cleanedSentences = sentences
+    .map((sentence, index) =>
+      index === 0 ? stripMetaSummaryPrefix(sentence).trim() : sentence,
+    )
+    .filter(
+      (sentence) => sentence.length > 0 && !isMetaSummarySentence(sentence),
+    );
+
+  if (cleanedSentences.length === 0) {
+    return capitalizeSummaryLead(stripMetaSummaryPrefix(normalized).trim());
+  }
+
+  return capitalizeSummaryLead(cleanedSentences.join(' ').trim());
+}
+
 export function normalizeCanonicalUrl(input: string) {
   const url = new URL(input);
 
@@ -104,6 +152,7 @@ function areSameStory(left: Story, right: Story) {
 }
 
 export function normalizeStoryCandidate(input: {
+  bodyText?: string;
   canonicalUrl: string;
   citations?: Story['citations'];
   importanceScore?: number;
@@ -118,6 +167,7 @@ export function normalizeStoryCandidate(input: {
   topics: string[];
 }) {
   const canonicalUrl = normalizeCanonicalUrl(input.canonicalUrl);
+  const summary = normalizeStorySummary(input.summary) || input.title.trim();
 
   return storySchema.parse({
     storyId: `story_${hashValue(
@@ -125,11 +175,12 @@ export function normalizeStoryCandidate(input: {
     )}`,
     title: input.title.trim(),
     canonicalUrl,
+    bodyText: input.bodyText?.trim() || undefined,
     sourceId: input.sourceId,
     sourceName: input.sourceName,
     sourceType: input.sourceType,
     publishedAt: input.publishedAt,
-    summary: input.summary.trim(),
+    summary,
     topics: input.topics,
     regions: input.regions,
     citations: input.citations ?? [

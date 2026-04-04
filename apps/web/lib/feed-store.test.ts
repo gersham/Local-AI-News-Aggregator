@@ -1,26 +1,33 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createMongoTestContext } from '@news-aggregator/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadFeedSnapshot, resolveFeedSnapshotPaths } from './feed-store';
 
 const tempRoots: string[] = [];
+const cleanupTasks: Array<() => Promise<void>> = [];
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env.FEED_SNAPSHOT_EXAMPLE_PATH;
+  delete process.env.FEED_SNAPSHOT_LEGACY_PATH;
   delete process.env.FEED_SNAPSHOT_PATH;
 
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
+
+  for (const cleanup of cleanupTasks.splice(0)) {
+    await cleanup();
+  }
 });
 
 describe('resolveFeedSnapshotPaths', () => {
-  it('derives writable and example feed paths from the project root', () => {
+  it('derives legacy-import and example feed paths from the project root', () => {
     const root = join(tmpdir(), 'news-feed-paths');
     const paths = resolveFeedSnapshotPaths({ projectRoot: root });
 
-    expect(paths.storagePath).toBe(join(root, 'data', 'feed-snapshot.json'));
+    expect(paths.legacyPath).toBe(join(root, 'data', 'feed-snapshot.json'));
     expect(paths.examplePath).toBe(
       join(root, 'config', 'feed-preview.example.json'),
     );
@@ -63,11 +70,19 @@ describe('loadFeedSnapshot', () => {
       }),
     );
 
-    const state = await loadFeedSnapshot({ projectRoot: root });
+    const mongo = await createMongoTestContext();
+    cleanupTasks.push(mongo.cleanup);
+
+    const state = await loadFeedSnapshot({
+      dbName: mongo.dbName,
+      projectRoot: root,
+      uri: mongo.uri,
+    });
 
     expect(state.usingExampleFallback).toBe(true);
     expect(state.snapshot.entries[0]?.headline).toBe(
       'AI lab releases new reasoning system',
     );
+    expect(state.storageTarget).toContain(mongo.dbName);
   });
 });

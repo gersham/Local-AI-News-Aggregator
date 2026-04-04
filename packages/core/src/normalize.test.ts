@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { clusterStories, normalizeStoryCandidate } from './index';
+import {
+  clusterStories,
+  normalizeStoryCandidate,
+  normalizeStorySummary,
+} from './index';
+
+describe('normalizeStorySummary', () => {
+  it('rewrites meta descriptive Exa-style summaries into direct news copy', () => {
+    expect(
+      normalizeStorySummary(
+        "The webpage reports that RCMP vehicles damaged during protests by members of the Sipekne'katik First Nation near Shubenacadie, Nova Scotia, have been recovered. The article highlights ongoing tensions in the area.",
+      ),
+    ).toBe(
+      "RCMP vehicles damaged during protests by members of the Sipekne'katik First Nation near Shubenacadie, Nova Scotia, have been recovered.",
+    );
+  });
+
+  it('drops trailing fragment sentences that only describe the article itself', () => {
+    expect(
+      normalizeStorySummary(
+        'The article reports that Vancouver city council approved a new housing package. The article highlights',
+      ),
+    ).toBe('Vancouver city council approved a new housing package.');
+  });
+});
 
 describe('normalizeStoryCandidate', () => {
   it('normalizes canonical URLs and seeds a citation', () => {
@@ -25,6 +49,23 @@ describe('normalizeStoryCandidate', () => {
       },
     ]);
     expect(story.storyId).toMatch(/^story_/);
+  });
+
+  it('stores cleaned news-style summaries instead of meta descriptions', () => {
+    const story = normalizeStoryCandidate({
+      canonicalUrl: 'https://example.com/story',
+      publishedAt: '2026-04-04T12:00:00.000Z',
+      regions: ['global'],
+      sourceId: 'hn-home',
+      sourceName: 'Hacker News Homepage',
+      sourceType: 'news-site',
+      summary:
+        'The webpage reports that a new AI benchmark was released. The article highlights',
+      title: 'New AI benchmark released',
+      topics: ['ai', 'tech'],
+    });
+
+    expect(story.summary).toBe('A new AI benchmark was released.');
   });
 });
 

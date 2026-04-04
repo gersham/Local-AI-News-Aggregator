@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { savePodcastRunToMongo } from '@news-aggregator/core';
 import { buildHostedArtifactUrl, startAudioArtifactServer } from './audio-host';
 import type { MorningBriefing } from './briefing';
 import { buildMorningBriefing } from './briefing';
@@ -10,6 +11,7 @@ import {
   synthesizeBriefingAudio,
 } from './elevenlabs';
 import { loadWorkerFeedSnapshot } from './feed-snapshot-store';
+import { runIngestCommand } from './ingest';
 import { playBriefingOnTargetRoom, probeSonosTargetRoom } from './sonos';
 import { fetchDailyWeatherSummary } from './weather';
 
@@ -52,6 +54,80 @@ function getHostedBriefingUrl(outputPath: string) {
   });
 }
 
+async function generateBriefingAudioRun(input: {
+  buildBriefing: (input: {
+    date: string;
+    feedSnapshot: Awaited<ReturnType<typeof loadWorkerFeedSnapshot>>;
+    weather: Awaited<ReturnType<typeof fetchDailyWeatherSummary>>;
+  }) => MorningBriefing | Promise<MorningBriefing>;
+  fetchWeather: typeof fetchDailyWeatherSummary;
+  loadFeedSnapshot: typeof loadWorkerFeedSnapshot;
+  persistPodcastRun?: typeof savePodcastRunToMongo;
+  runIngestCommand?: typeof runIngestCommand;
+  selectVoices: typeof selectBriefingVoices;
+  synthesize: typeof synthesizeBriefingAudio;
+  writeLine: (line: string) => void;
+}) {
+  if (input.runIngestCommand) {
+    await input.runIngestCommand();
+  }
+
+  const [feedSnapshot, weather] = await Promise.all([
+    input.loadFeedSnapshot(),
+    input.fetchWeather({
+      locationQuery: process.env.HOME_LOCATION_QUERY,
+    }),
+  ]);
+  const briefing = await input.buildBriefing({
+    date: feedSnapshot.generatedAt,
+    feedSnapshot,
+    weather,
+  });
+
+  input.writeLine(briefing.transcript);
+
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      'ELEVENLABS_API_KEY is required for briefing generation. Ensure the repo-root .env is loaded.',
+    );
+  }
+
+  const outputPath = getDefaultOutputPath();
+  const voices = await input.selectVoices({
+    apiKey,
+    overrides: {
+      primary: process.env.ELEVENLABS_PRIMARY_VOICE_ID,
+      secondary: process.env.ELEVENLABS_SECONDARY_VOICE_ID,
+      tertiary: process.env.ELEVENLABS_TERTIARY_VOICE_ID,
+    },
+  });
+  const audioResult = await input.synthesize({
+    apiKey,
+    briefing,
+    outputPath,
+    voices,
+  });
+  const generatedAt = new Date().toISOString();
+  const persistPodcastRun = input.persistPodcastRun ?? savePodcastRunToMongo;
+  const savedRun = await persistPodcastRun({
+    audioPath: audioResult.outputPath,
+    date: generatedAt.slice(0, 10),
+    generatedAt,
+    transcript: briefing.transcript,
+    transcriptPath: audioResult.transcriptPath,
+  });
+
+  input.writeLine(`MP3 written to ${audioResult.outputPath}`);
+
+  return {
+    audioResult,
+    briefing,
+    podcastRun: savedRun.run,
+  };
+}
+
 export async function runWorkerCli(
   argv: string[],
   dependencies: {
@@ -62,7 +138,9 @@ export async function runWorkerCli(
       weather: Awaited<ReturnType<typeof fetchDailyWeatherSummary>>;
     }) => MorningBriefing | Promise<MorningBriefing>;
     fetchDailyWeatherSummary?: typeof fetchDailyWeatherSummary;
+    runIngestCommand?: typeof runIngestCommand;
     loadFeedSnapshot?: typeof loadWorkerFeedSnapshot;
+    persistPodcastRun?: typeof savePodcastRunToMongo;
     probeElevenLabs?: typeof probeElevenLabs;
     probeSonosTargetRoom?: typeof probeSonosTargetRoom;
     playBriefingOnTargetRoom?: typeof playBriefingOnTargetRoom;
@@ -80,6 +158,22 @@ export async function runWorkerCli(
   const buildBriefing =
     dependencies.buildMorningBriefing ?? buildMorningBriefing;
   const writeLine = dependencies.writeLine ?? console.log;
+
+  if (command === 'ingest:run') {
+    const ingest = dependencies.runIngestCommand ?? runIngestCommand;
+    const summary = await ingest();
+
+    writeLine(JSON.stringify(summary, null, 2));
+
+    return {
+      audioServer: undefined,
+      delivery: undefined,
+      probe: undefined,
+      sonosPlayback: undefined,
+      sonosProbe: undefined,
+      transcript: '',
+    };
+  }
 
   if (command === 'elevenlabs:probe') {
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -236,36 +330,20 @@ export async function runWorkerCli(
       );
     }
 
-    const [feedSnapshot, weather] = await Promise.all([
-      loadFeedSnapshot(),
-      fetchWeather({
-        locationQuery: process.env.HOME_LOCATION_QUERY,
-      }),
-    ]);
-    const briefing = await buildBriefing({
-      date: feedSnapshot.generatedAt,
-      feedSnapshot,
-      weather,
-    });
     const selectVoices =
       dependencies.selectBriefingVoices ?? selectBriefingVoices;
     const synthesize =
       dependencies.synthesizeBriefingAudio ?? synthesizeBriefingAudio;
-    const voices = await selectVoices({
-      apiKey,
-      overrides: {
-        primary: process.env.ELEVENLABS_PRIMARY_VOICE_ID,
-        secondary: process.env.ELEVENLABS_SECONDARY_VOICE_ID,
-        tertiary: process.env.ELEVENLABS_TERTIARY_VOICE_ID,
-      },
+    const generation = await generateBriefingAudioRun({
+      buildBriefing,
+      fetchWeather,
+      loadFeedSnapshot,
+      persistPodcastRun: dependencies.persistPodcastRun,
+      selectVoices,
+      synthesize,
+      writeLine,
     });
-    const audioResult = await synthesize({
-      apiKey,
-      briefing,
-      outputPath: getDefaultOutputPath(),
-      voices,
-    });
-    const playbackUrl = getHostedBriefingUrl(audioResult.outputPath);
+    const playbackUrl = getHostedBriefingUrl(generation.audioResult.outputPath);
     const playBriefing =
       dependencies.playBriefingOnTargetRoom ?? playBriefingOnTargetRoom;
     const sonosPlayback = await playBriefing({
@@ -274,20 +352,21 @@ export async function runWorkerCli(
       targetRoom,
     });
     const delivery = {
-      outputPath: audioResult.outputPath,
+      outputPath: generation.audioResult.outputPath,
       playbackUrl,
       sonosPlayback,
-      transcriptPath: audioResult.transcriptPath,
+      transcriptPath: generation.audioResult.transcriptPath,
     };
 
     writeLine(
       JSON.stringify(
         {
-          outputPath: audioResult.outputPath,
+          outputPath: generation.audioResult.outputPath,
+          podcastRunId: generation.podcastRun.runId,
           playbackUrl,
           roomName: sonosPlayback.roomName,
           sonosHost: sonosPlayback.host,
-          transcriptPath: audioResult.transcriptPath,
+          transcriptPath: generation.audioResult.transcriptPath,
         },
         null,
         2,
@@ -297,33 +376,49 @@ export async function runWorkerCli(
     return {
       audioServer: undefined,
       delivery,
+      outputPath: generation.audioResult.outputPath,
+      podcastRun: generation.podcastRun,
       probe: undefined,
       sonosPlayback,
       sonosProbe: undefined,
-      transcript: briefing.transcript,
-      transcriptPath: audioResult.transcriptPath,
+      transcript: generation.briefing.transcript,
+      transcriptPath: generation.audioResult.transcriptPath,
     };
   }
 
-  if (command === 'briefing:preview' || command === 'briefing:audio') {
+  if (
+    command === 'briefing:preview' ||
+    command === 'briefing:audio' ||
+    command === 'briefing:generate'
+  ) {
+    const shouldIngest = command === 'briefing:generate';
     const [feedSnapshot, weather] = await Promise.all([
-      loadFeedSnapshot(),
-      fetchWeather({
-        locationQuery: process.env.HOME_LOCATION_QUERY,
-      }),
+      shouldIngest ? Promise.resolve(undefined) : loadFeedSnapshot(),
+      shouldIngest
+        ? Promise.resolve(undefined)
+        : fetchWeather({
+            locationQuery: process.env.HOME_LOCATION_QUERY,
+          }),
     ]);
-    const briefing = await buildBriefing({
-      date: feedSnapshot.generatedAt,
-      feedSnapshot,
-      weather,
-    });
-
-    writeLine(briefing.transcript);
 
     if (command === 'briefing:preview') {
+      const briefing = await buildBriefing({
+        date: (
+          feedSnapshot as Awaited<ReturnType<typeof loadWorkerFeedSnapshot>>
+        ).generatedAt,
+        feedSnapshot: feedSnapshot as Awaited<
+          ReturnType<typeof loadWorkerFeedSnapshot>
+        >,
+        weather: weather as Awaited<
+          ReturnType<typeof fetchDailyWeatherSummary>
+        >,
+      });
+      writeLine(briefing.transcript);
+
       return {
         audioServer: undefined,
         delivery: undefined,
+        podcastRun: undefined,
         probe: undefined,
         sonosPlayback: undefined,
         sonosProbe: undefined,
@@ -335,46 +430,34 @@ export async function runWorkerCli(
       dependencies.selectBriefingVoices ?? selectBriefingVoices;
     const synthesize =
       dependencies.synthesizeBriefingAudio ?? synthesizeBriefingAudio;
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-
-    if (!apiKey) {
-      throw new Error(
-        'ELEVENLABS_API_KEY is required for briefing:audio. Ensure the repo-root .env is loaded.',
-      );
-    }
-
-    const outputPath = getDefaultOutputPath();
-    const voices = await selectVoices({
-      apiKey,
-      overrides: {
-        primary: process.env.ELEVENLABS_PRIMARY_VOICE_ID,
-        secondary: process.env.ELEVENLABS_SECONDARY_VOICE_ID,
-        tertiary: process.env.ELEVENLABS_TERTIARY_VOICE_ID,
-      },
+    const generation = await generateBriefingAudioRun({
+      buildBriefing,
+      fetchWeather,
+      loadFeedSnapshot,
+      persistPodcastRun: dependencies.persistPodcastRun,
+      runIngestCommand: shouldIngest
+        ? (dependencies.runIngestCommand ?? runIngestCommand)
+        : undefined,
+      selectVoices,
+      synthesize,
+      writeLine,
     });
-    const audioResult = await synthesize({
-      apiKey,
-      briefing,
-      outputPath,
-      voices,
-    });
-
-    writeLine(`MP3 written to ${audioResult.outputPath}`);
 
     return {
       audioServer: undefined,
       delivery: undefined,
-      outputPath: audioResult.outputPath,
+      outputPath: generation.audioResult.outputPath,
+      podcastRun: generation.podcastRun,
       probe: undefined,
       sonosPlayback: undefined,
       sonosProbe: undefined,
-      transcript: briefing.transcript,
-      transcriptPath: audioResult.transcriptPath,
+      transcript: generation.briefing.transcript,
+      transcriptPath: generation.audioResult.transcriptPath,
     };
   }
 
   writeLine(
-    'Available commands: briefing:preview, briefing:audio, briefing:deliver, elevenlabs:probe, audio:serve, sonos:probe, sonos:play-briefing',
+    'Available commands: ingest:run, briefing:preview, briefing:audio, briefing:generate, briefing:deliver, elevenlabs:probe, audio:serve, sonos:probe, sonos:play-briefing',
   );
 
   return {
@@ -388,6 +471,10 @@ export async function runWorkerCli(
           sonosPlayback: Awaited<ReturnType<typeof playBriefingOnTargetRoom>>;
           transcriptPath: string;
         }
+      | undefined,
+    outputPath: undefined as string | undefined,
+    podcastRun: undefined as
+      | Awaited<ReturnType<typeof savePodcastRunToMongo>>['run']
       | undefined,
     probe: undefined as ElevenLabsProbeResult | undefined,
     sonosPlayback: undefined as

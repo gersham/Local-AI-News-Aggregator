@@ -7,7 +7,9 @@ describe('shouldExitAfterCommand', () => {
   });
 
   it('exits after one-shot worker commands', () => {
+    expect(shouldExitAfterCommand('ingest:run')).toBe(true);
     expect(shouldExitAfterCommand('briefing:audio')).toBe(true);
+    expect(shouldExitAfterCommand('briefing:generate')).toBe(true);
     expect(shouldExitAfterCommand('briefing:deliver')).toBe(true);
     expect(shouldExitAfterCommand('elevenlabs:probe')).toBe(true);
     expect(shouldExitAfterCommand('sonos:play-briefing')).toBe(true);

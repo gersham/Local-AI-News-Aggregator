@@ -1,19 +1,24 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { type FeedSnapshot, feedSnapshotSchema } from '@news-aggregator/core';
+import {
+  type FeedSnapshot,
+  loadFeedSnapshotFromMongo,
+} from '@news-aggregator/core';
 
 const DEFAULT_PROJECT_ROOT = resolve(process.cwd(), '../..');
 
 export type FeedSnapshotPathOptions = {
+  dbName?: string;
   examplePath?: string;
+  legacyPath?: string;
   projectRoot?: string;
-  storagePath?: string;
+  uri?: string;
 };
 
 export type LoadedFeedSnapshotState = {
   examplePath: string;
   snapshot: FeedSnapshot;
-  storagePath: string;
+  storageTarget: string;
   usingExampleFallback: boolean;
 };
 
@@ -27,8 +32,9 @@ export function resolveFeedSnapshotPaths(
       options.examplePath ??
       process.env.FEED_SNAPSHOT_EXAMPLE_PATH ??
       join(projectRoot, 'config', 'feed-preview.example.json'),
-    storagePath:
-      options.storagePath ??
+    legacyPath:
+      options.legacyPath ??
+      process.env.FEED_SNAPSHOT_LEGACY_PATH ??
       process.env.FEED_SNAPSHOT_PATH ??
       join(projectRoot, 'data', 'feed-snapshot.json'),
   };
@@ -38,18 +44,19 @@ export async function loadFeedSnapshot(
   options: FeedSnapshotPathOptions = {},
 ): Promise<LoadedFeedSnapshotState> {
   const paths = resolveFeedSnapshotPaths(options);
-  const usingExampleFallback = !existsSync(paths.storagePath);
-  const targetPath = usingExampleFallback
-    ? paths.examplePath
-    : paths.storagePath;
-  const snapshot = feedSnapshotSchema.parse(
-    JSON.parse(readFileSync(targetPath, 'utf8')),
-  );
+  const state = await loadFeedSnapshotFromMongo({
+    dbName: options.dbName,
+    feedSnapshotExamplePath: paths.examplePath,
+    feedSnapshotLegacyPath: existsSync(paths.legacyPath)
+      ? paths.legacyPath
+      : undefined,
+    uri: options.uri,
+  });
 
   return {
     examplePath: paths.examplePath,
-    snapshot,
-    storagePath: paths.storagePath,
-    usingExampleFallback,
+    snapshot: state.snapshot,
+    storageTarget: state.storageTarget,
+    usingExampleFallback: state.usingExampleFallback,
   };
 }

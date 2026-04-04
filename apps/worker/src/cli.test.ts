@@ -73,6 +73,16 @@ describe('runWorkerCli', () => {
         entries: [],
         generatedAt: '2026-04-04T15:00:00.000Z',
       }),
+      persistPodcastRun: async (input) => ({
+        run: {
+          audioPath: input.audioPath,
+          date: input.date,
+          generatedAt: input.generatedAt,
+          runId: 'run_123',
+          transcriptPath: input.transcriptPath,
+        },
+        storageTarget: 'mongodb:test/podcast_runs',
+      }),
       selectBriefingVoices: async () => ({
         primary: 'voice_primary',
         secondary: 'voice_secondary',
@@ -285,6 +295,16 @@ describe('runWorkerCli', () => {
         entries: [],
         generatedAt: '2026-04-04T15:00:00.000Z',
       }),
+      persistPodcastRun: async (input) => ({
+        run: {
+          audioPath: input.audioPath,
+          date: input.date,
+          generatedAt: input.generatedAt,
+          runId: 'run_123',
+          transcriptPath: input.transcriptPath,
+        },
+        storageTarget: 'mongodb:test/podcast_runs',
+      }),
       playBriefingOnTargetRoom: async () => ({
         host: '10.3.78.223',
         playbackUrl:
@@ -307,11 +327,12 @@ describe('runWorkerCli', () => {
 
     expect(result.delivery?.sonosPlayback.host).toBe('10.3.78.223');
     expect(result.delivery?.outputPath).toContain('morning-briefing.mp3');
-    expect(writeLine).toHaveBeenCalledWith(
+    expect(writeLine).toHaveBeenLastCalledWith(
       JSON.stringify(
         {
           outputPath:
             '/Users/gersham/Sources/personal/NewsAggregator/artifacts/briefings/2026-04-04/morning-briefing.mp3',
+          podcastRunId: 'run_123',
           playbackUrl:
             'http://arch.local:9999/briefings/2026-04-04/morning-briefing.mp3',
           roomName: 'Bedroom Ceiling',

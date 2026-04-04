@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "ingest:run": "tsx src/index.ts ingest:run",
     "briefing:preview": "tsx src/index.ts briefing:preview",
     "briefing:audio": "tsx src/index.ts briefing:audio",
+    "briefing:generate": "tsx src/index.ts briefing:generate",
     "briefing:deliver": "tsx src/index.ts briefing:deliver",
     "elevenlabs:probe": "tsx src/index.ts elevenlabs:probe",
     "audio:serve": "tsx src/index.ts audio:serve",
@@ -20,7 +22,9 @@
     "@news-aggregator/core": "workspace:*",
     "@news-aggregator/test-utils": "workspace:*",
     "better-sqlite3": "12.8.0",
+    "cheerio": "^1.2.0",
     "dotenv": "17.4.0",
+    "fast-xml-parser": "^5.5.10",
     "sonos": "1.14.3",
     "zod": "4.3.6"
   }

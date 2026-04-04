@@ -1,30 +1,52 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
-  readSourceRegistryFromFile,
+  loadSourceRegistryFromMongo,
   type SourceDefinition,
   type SourceRegistry,
+  saveSourceRegistryToMongo,
+  updateSourceDefinitionInMongo,
   upsertSourceDefinition,
-  writeSourceRegistryToFile,
 } from '@news-aggregator/core';
 
 const DEFAULT_PROJECT_ROOT = resolve(process.cwd(), '../..');
 
 export type SourceRegistryPathOptions = {
+  dbName?: string;
   examplePath?: string;
+  legacyPath?: string;
   projectRoot?: string;
-  storagePath?: string;
+  uri?: string;
 };
 
 export type PersistedSourceRegistryState = {
   examplePath: string;
   registry: SourceRegistry;
-  storagePath: string;
+  storageTarget: string;
   usingExampleFallback: boolean;
 };
 
 export type SourceDefinitionPatch = Partial<
-  Pick<SourceDefinition, 'enabled' | 'executionMode' | 'notes'>
+  Pick<
+    SourceDefinition,
+    | 'additionalQueries'
+    | 'baseWeight'
+    | 'enabled'
+    | 'exaCategory'
+    | 'exaNumResults'
+    | 'exaSearchType'
+    | 'exaUserLocation'
+    | 'executionMode'
+    | 'excludeDomains'
+    | 'includeDomains'
+    | 'notes'
+    | 'query'
+    | 'regions'
+    | 'rssUrl'
+    | 'seedUrls'
+    | 'topics'
+    | 'trustWeight'
+  >
 >;
 
 export function resolveSourceRegistryPaths(
@@ -33,8 +55,9 @@ export function resolveSourceRegistryPaths(
   const projectRoot = options.projectRoot ?? DEFAULT_PROJECT_ROOT;
 
   return {
-    storagePath:
-      options.storagePath ??
+    legacyPath:
+      options.legacyPath ??
+      process.env.SOURCE_REGISTRY_LEGACY_PATH ??
       process.env.SOURCE_REGISTRY_PATH ??
       join(projectRoot, 'data', 'sources.json'),
     examplePath:
@@ -47,17 +70,19 @@ export function resolveSourceRegistryPaths(
 export async function loadPersistedSourceRegistry(
   options: SourceRegistryPathOptions = {},
 ): Promise<PersistedSourceRegistryState> {
-  const { examplePath, storagePath } = resolveSourceRegistryPaths(options);
-  const usingExampleFallback = !existsSync(storagePath);
-  const registry = readSourceRegistryFromFile(
-    usingExampleFallback ? examplePath : storagePath,
-  );
+  const { examplePath, legacyPath } = resolveSourceRegistryPaths(options);
+  const state = await loadSourceRegistryFromMongo({
+    dbName: options.dbName,
+    sourceRegistryExamplePath: examplePath,
+    sourceRegistryLegacyPath: existsSync(legacyPath) ? legacyPath : undefined,
+    uri: options.uri,
+  });
 
   return {
     examplePath,
-    registry,
-    storagePath,
-    usingExampleFallback,
+    registry: state.registry,
+    storageTarget: state.storageTarget,
+    usingExampleFallback: state.usingExampleFallback,
   };
 }
 
@@ -65,13 +90,16 @@ export async function savePersistedSourceRegistry(
   registry: SourceRegistry,
   options: SourceRegistryPathOptions = {},
 ): Promise<PersistedSourceRegistryState> {
-  const { examplePath, storagePath } = resolveSourceRegistryPaths(options);
-  const validated = writeSourceRegistryToFile(storagePath, registry);
+  const { examplePath } = resolveSourceRegistryPaths(options);
+  const saved = await saveSourceRegistryToMongo(registry, {
+    dbName: options.dbName,
+    uri: options.uri,
+  });
 
   return {
     examplePath,
-    registry: validated,
-    storagePath,
+    registry: saved.registry,
+    storageTarget: saved.storageTarget,
     usingExampleFallback: false,
   };
 }
@@ -79,32 +107,65 @@ export async function savePersistedSourceRegistry(
 export async function updateStoredSourceDefinition({
   examplePath,
   id,
+  legacyPath,
   patch,
   projectRoot,
-  storagePath,
+  dbName,
+  uri,
 }: {
+  dbName?: string;
   examplePath?: string;
   id: string;
+  legacyPath?: string;
   patch: SourceDefinitionPatch;
   projectRoot?: string;
-  storagePath?: string;
+  uri?: string;
 }) {
   const options = {
+    dbName,
     examplePath,
+    legacyPath,
     projectRoot,
-    storagePath,
+    uri,
   };
-  const current = await loadPersistedSourceRegistry(options);
-  const existing = current.registry.sources.find((source) => source.id === id);
-
-  if (!existing) {
-    throw new Error(`Source "${id}" was not found.`);
-  }
-
-  const nextRegistry = upsertSourceDefinition(current.registry, {
-    ...existing,
-    ...patch,
+  const { examplePath: resolvedExamplePath, legacyPath: resolvedLegacyPath } =
+    resolveSourceRegistryPaths(options);
+  const updated = await updateSourceDefinitionInMongo({
+    dbName,
+    id,
+    patch,
+    sourceRegistryExamplePath: resolvedExamplePath,
+    sourceRegistryLegacyPath: existsSync(resolvedLegacyPath)
+      ? resolvedLegacyPath
+      : undefined,
+    uri,
   });
 
-  return savePersistedSourceRegistry(nextRegistry, options);
+  return {
+    examplePath: resolvedExamplePath,
+    registry: updated.registry,
+    storageTarget: updated.storageTarget,
+    usingExampleFallback: false,
+  };
+}
+
+export async function addNewSourceDefinition(
+  source: SourceDefinition,
+  options: SourceRegistryPathOptions = {},
+): Promise<PersistedSourceRegistryState> {
+  const state = await loadPersistedSourceRegistry(options);
+  const updated = upsertSourceDefinition(state.registry, source);
+  return savePersistedSourceRegistry(updated, options);
+}
+
+export async function deleteSourceDefinition(
+  id: string,
+  options: SourceRegistryPathOptions = {},
+): Promise<PersistedSourceRegistryState> {
+  const state = await loadPersistedSourceRegistry(options);
+  const filtered = {
+    ...state.registry,
+    sources: state.registry.sources.filter((s) => s.id !== id),
+  };
+  return savePersistedSourceRegistry(filtered, options);
 }

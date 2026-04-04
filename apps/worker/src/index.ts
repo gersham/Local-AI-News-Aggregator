@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   defaultOperationalSettings,
-  readSourceRegistryFromFile,
+  loadSourceRegistryFromMongo,
 } from '@news-aggregator/core';
 import { config as loadEnv } from 'dotenv';
 import { runWorkerCli } from './cli';
@@ -12,6 +11,7 @@ import { buildXSearchPlans } from './x-search';
 
 export function isWorkerCommand(command: string | undefined) {
   return (
+    command?.startsWith('ingest:') ||
     command?.startsWith('briefing:') ||
     command?.startsWith('elevenlabs:') ||
     command?.startsWith('audio:') ||
@@ -39,27 +39,33 @@ export async function runWorkerEntryPoint(argv = process.argv.slice(2)) {
     return;
   }
 
-  const registryPath =
+  const registryLegacyPath =
+    process.env.SOURCE_REGISTRY_LEGACY_PATH ??
     process.env.SOURCE_REGISTRY_PATH ??
     resolve(process.cwd(), '../../data/sources.json');
   const exampleRegistryPath =
     process.env.SOURCE_REGISTRY_EXAMPLE_PATH ??
     resolve(process.cwd(), '../../config/sources.example.json');
-  const sourceRegistry = readSourceRegistryFromFile(
-    existsSync(registryPath) ? registryPath : exampleRegistryPath,
-  );
+  const sourceRegistry = (
+    await loadSourceRegistryFromMongo({
+      sourceRegistryExamplePath: exampleRegistryPath,
+      sourceRegistryLegacyPath: registryLegacyPath,
+    })
+  ).registry;
   const publicSourcePlans = buildPublicSourceFetchPlans(sourceRegistry);
   const xSearchPlans = buildXSearchPlans(sourceRegistry);
 
-  console.log('Worker scaffold ready.');
+  console.log('Worker ready.');
   console.log({
     baseUrl: process.env.APP_BASE_URL ?? 'http://localhost:3000',
     publicDiscoveryPlanCount: publicSourcePlans.length,
     targetRoom: process.env.SONOS_TARGET_ROOM ?? 'unset',
     xSearchPlanCount: xSearchPlans.length,
     availableCommands: [
+      'ingest:run',
       'briefing:preview',
       'briefing:audio',
+      'briefing:generate',
       'briefing:deliver',
       'elevenlabs:probe',
       'audio:serve',

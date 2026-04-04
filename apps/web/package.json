@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "tsx scripts/run-next.ts dev",
+    "build": "tsx scripts/run-next.ts build",
+    "start": "tsx scripts/run-next.ts start",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@news-aggregator/core": "workspace:*",
+    "@news-aggregator/test-utils": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",

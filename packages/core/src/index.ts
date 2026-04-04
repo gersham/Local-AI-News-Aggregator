@@ -27,10 +27,31 @@ export {
   storySchema,
   systemCapabilityHeadings,
 } from './domain';
+export type { MongoConnectionOptions } from './mongo-store';
+export {
+  deletePodcastRunFromMongo,
+  getMongoCollectionNames,
+  loadCachedArticlesFromMongo,
+  loadFeedSnapshotFromMongo,
+  loadPodcastRunsFromMongo,
+  loadSourceRegistryFromMongo,
+  loadStoriesFromMongo,
+  loadStoryClustersFromMongo,
+  saveCachedArticlesToMongo,
+  saveDiscoveryArtifactToMongo,
+  saveFeedSnapshotToMongo,
+  saveIngestRunToMongo,
+  savePodcastRunToMongo,
+  saveSourceRegistryToMongo,
+  saveStoriesToMongo,
+  saveStoryClustersToMongo,
+  updateSourceDefinitionInMongo,
+} from './mongo-store';
 export {
   clusterStories,
   normalizeCanonicalUrl,
   normalizeStoryCandidate,
+  normalizeStorySummary,
 } from './normalize';
 export { materializeFeedSnapshot, scoreStoryCluster } from './ranking';
 export {

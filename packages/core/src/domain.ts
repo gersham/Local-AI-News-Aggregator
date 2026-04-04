@@ -34,6 +34,16 @@ export const sourceDefinitionSchema = z.object({
   topics: z.array(z.string()).default([]),
   regions: z.array(z.string()).default([]),
   query: z.string().min(1).optional(),
+  additionalQueries: z.array(z.string()).default([]),
+  includeDomains: z.array(z.string()).default([]),
+  excludeDomains: z.array(z.string()).default([]),
+  exaCategory: z.string().min(1).optional(),
+  exaNumResults: z.number().int().min(1).max(100).optional(),
+  exaSearchType: z.string().min(1).optional(),
+  exaUserLocation: z
+    .string()
+    .regex(/^[a-z]{2}$/iu)
+    .optional(),
   rssUrl: z.url().optional(),
   seedUrls: z.array(z.url()).default([]),
   baseWeight: z.number().min(0).max(1),
@@ -46,6 +56,7 @@ export const storySchema = z.object({
   clusterId: z.string().optional(),
   title: z.string(),
   canonicalUrl: z.url(),
+  bodyText: z.string().optional(),
   sourceId: z.string(),
   sourceName: z.string(),
   sourceType: sourceTypeSchema,
@@ -83,6 +94,7 @@ export const storyClusterSchema = z.object({
 });
 
 export const feedEntrySchema = z.object({
+  bodyText: z.string().optional(),
   clusterId: z.string(),
   canonicalUrl: z.url(),
   citationCount: z.number().int().nonnegative(),
@@ -112,6 +124,8 @@ export const feedSnapshotSchema = z.object({
 export const podcastRunSchema = z.object({
   runId: z.string(),
   date: z.iso.date(),
+  generatedAt: z.iso.datetime(),
+  transcript: z.string().optional(),
   durationSec: z.number().int().positive().optional(),
   transcriptPath: z.string().optional(),
   audioPath: z.string().optional(),

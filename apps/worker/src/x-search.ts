@@ -7,7 +7,13 @@ export type XSearchPlan = {
 
 export type XSearchResponsePayload = {
   id?: string;
-  output?: unknown;
+  output?: Array<{
+    content?: Array<{
+      text?: string;
+      type?: string;
+    }>;
+    type?: string;
+  }>;
   output_text?: string;
   tool_calls?: unknown[];
 };
@@ -53,6 +59,19 @@ export function createXSearchRequest(
     ],
     max_turns: 3,
   };
+}
+
+export function getXSearchOutputText(payload: XSearchResponsePayload) {
+  if (typeof payload.output_text === 'string' && payload.output_text.trim()) {
+    return payload.output_text;
+  }
+
+  const message = payload.output?.find((item) => item.type === 'message');
+  const outputText = message?.content?.find(
+    (item) => item.type === 'output_text' && typeof item.text === 'string',
+  );
+
+  return outputText?.text ?? '';
 }
 
 export async function executeXSearchPlan(

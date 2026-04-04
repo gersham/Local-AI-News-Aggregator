@@ -1,5 +1,7 @@
 import { sourceDefinitionSchema } from '@news-aggregator/core';
 
+export { createMongoTestContext } from './mongo';
+
 export function buildSourceFixture(overrides = {}) {
   return sourceDefinitionSchema.parse({
     id: 'fixture-source',

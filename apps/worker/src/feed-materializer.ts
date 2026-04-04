@@ -1,11 +1,9 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import {
   clusterStories,
   type FeedSnapshot,
-  feedSnapshotSchema,
   materializeFeedSnapshot,
   type SourceDefinition,
+  saveFeedSnapshotToMongo,
 } from '@news-aggregator/core';
 import {
   normalizeExaSearchArtifact,
@@ -47,11 +45,14 @@ export function materializeFeedFromArtifacts(input: {
   });
 }
 
-export async function writeFeedSnapshot(path: string, snapshot: FeedSnapshot) {
-  const validated = feedSnapshotSchema.parse(snapshot);
+export async function writeFeedSnapshot(
+  snapshot: FeedSnapshot,
+  options: {
+    dbName?: string;
+    uri?: string;
+  } = {},
+) {
+  const saved = await saveFeedSnapshotToMongo(snapshot, options);
 
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
-
-  return validated;
+  return saved.snapshot;
 }

@@ -140,6 +140,7 @@ export function materializeFeedSnapshot(
       );
 
       return {
+        bodyText: scored.leadStory.bodyText,
         canonicalUrl: cluster.canonicalUrl,
         citationCount: cluster.citations.length,
         clusterId: cluster.clusterId,

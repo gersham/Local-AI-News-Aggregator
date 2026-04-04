@@ -3,7 +3,7 @@ import {
   type SourceDefinition,
 } from '@news-aggregator/core';
 import type { ExecutedPublicSourceFetch } from './public-sources';
-import type { XSearchResponsePayload } from './x-search';
+import { getXSearchOutputText, type XSearchResponsePayload } from './x-search';
 
 function parseJsonText(input: string) {
   const trimmed = input.trim();
@@ -33,6 +33,7 @@ export function normalizeExaSearchArtifact({
 }) {
   const payload = parseJsonText(artifact.content) as {
     results?: Array<{
+      highlights?: string[];
       publishedDate?: string;
       summary?: string;
       text?: string;
@@ -56,7 +57,10 @@ export function normalizeExaSearchArtifact({
       sourceId: source.id,
       sourceName: source.name,
       sourceType: source.type,
-      summary: summarizeText(result.summary ?? result.text) || result.title,
+      summary:
+        summarizeText(
+          result.summary ?? result.highlights?.join(' ') ?? result.text,
+        ) || result.title,
       title: result.title,
       topics: source.topics,
     }),
@@ -73,7 +77,7 @@ export function normalizeXSearchExecutionResult({
   };
   source: SourceDefinition;
 }) {
-  const payload = parseJsonText(result.content.output_text ?? '') as {
+  const payload = parseJsonText(getXSearchOutputText(result.content)) as {
     stories?: Array<{
       publishedAt?: string;
       regions?: string[];

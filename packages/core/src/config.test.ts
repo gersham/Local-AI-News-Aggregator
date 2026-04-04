@@ -11,6 +11,7 @@ describe('runtimeEnvSchema', () => {
       APP_BASE_URL: 'http://localhost:3000',
       MORNING_BRIEFING_TIME: '07:00',
       MORNING_BRIEFING_TIMEZONE: 'America/Vancouver',
+      MONGODB_URI: 'mongodb://localhost:27017',
       XAI_API_KEY: 'xai-test-key',
       EXA_API_KEY: 'exa-test-key',
       ELEVENLABS_API_KEY: 'elevenlabs-test-key',
@@ -29,6 +30,8 @@ describe('loadRuntimeConfig', () => {
       APP_BASE_URL: 'http://localhost:3000',
       MORNING_BRIEFING_TIME: '07:00',
       MORNING_BRIEFING_TIMEZONE: 'America/Vancouver',
+      MONGODB_URI: 'mongodb://localhost:27017',
+      MONGODB_DB_NAME: 'news_aggregator_test',
       XAI_API_KEY: 'xai-test-key',
       EXA_API_KEY: 'exa-test-key',
       ELEVENLABS_API_KEY: 'elevenlabs-test-key',
@@ -40,6 +43,8 @@ describe('loadRuntimeConfig', () => {
 
     expect(config.app.baseUrl).toBe('http://localhost:3000');
     expect(config.briefing.timezone).toBe('America/Vancouver');
+    expect(config.database.dbName).toBe('news_aggregator_test');
+    expect(config.database.uri).toBe('mongodb://localhost:27017');
     expect(config.providers.elevenLabs.apiKey).toBe('elevenlabs-test-key');
     expect(config.browser.redditSessionName).toBe('news-aggregator-reddit');
     expect(config.sonos.targetHost).toBe('10.3.78.223');
@@ -51,6 +56,7 @@ describe('loadRuntimeConfig', () => {
         APP_BASE_URL: 'http://localhost:3000',
         MORNING_BRIEFING_TIME: '07:00',
         MORNING_BRIEFING_TIMEZONE: 'America/Vancouver',
+        MONGODB_URI: 'mongodb://localhost:27017',
         XAI_API_KEY: 'xai-test-key',
         EXA_API_KEY: 'exa-test-key',
         ELEVENLABS_API_KEY: '',

@@ -1,21 +1,38 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createMongoTestContext } from '@news-aggregator/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GET } from './route';
 
 const tempRoots: string[] = [];
+const cleanupTasks: Array<() => Promise<void>> = [];
 
-afterEach(() => {
+afterEach(async () => {
+  delete process.env.MONGODB_DB_NAME;
+  delete process.env.MONGODB_URI;
   delete process.env.FEED_SNAPSHOT_EXAMPLE_PATH;
+  delete process.env.FEED_SNAPSHOT_LEGACY_PATH;
   delete process.env.FEED_SNAPSHOT_PATH;
 
   for (const root of tempRoots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }
+
+  for (const cleanup of cleanupTasks.splice(0)) {
+    await cleanup();
+  }
 });
 
 describe('GET /api/feed', () => {
+  it('returns a setup-blocked response when mongodb is not configured', async () => {
+    const response = await GET();
+    const payload = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(payload.error).toContain('MONGODB_URI');
+  });
+
   it('returns a feed snapshot with fallback metadata', async () => {
     const root = join(tmpdir(), `news-feed-route-${Date.now()}`);
     tempRoots.push(root);
@@ -54,7 +71,15 @@ describe('GET /api/feed', () => {
     );
 
     process.env.FEED_SNAPSHOT_EXAMPLE_PATH = examplePath;
-    process.env.FEED_SNAPSHOT_PATH = join(root, 'data', 'feed-snapshot.json');
+    process.env.FEED_SNAPSHOT_LEGACY_PATH = join(
+      root,
+      'data',
+      'feed-snapshot.json',
+    );
+    const mongo = await createMongoTestContext();
+    cleanupTasks.push(mongo.cleanup);
+    process.env.MONGODB_DB_NAME = mongo.dbName;
+    process.env.MONGODB_URI = mongo.uri;
 
     const response = await GET();
     const payload = await response.json();

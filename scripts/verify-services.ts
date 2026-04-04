@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { config as loadEnv } from 'dotenv';
+import { MongoClient } from 'mongodb';
 
 const envPath = '.env';
 
@@ -11,6 +12,7 @@ const requiredEnvNames = [
   'XAI_API_KEY',
   'EXA_API_KEY',
   'ELEVENLABS_API_KEY',
+  'MONGODB_URI',
   'SONOS_TARGET_ROOM',
   'MORNING_BRIEFING_TIME',
   'MORNING_BRIEFING_TIMEZONE',
@@ -84,6 +86,23 @@ for (const check of remoteChecks) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[failed] ${check.name}: ${message}`);
   }
+}
+
+let mongoClient: MongoClient | undefined;
+
+try {
+  mongoClient = new MongoClient(process.env.MONGODB_URI ?? '');
+  await mongoClient.connect();
+  await mongoClient
+    .db(process.env.MONGODB_DB_NAME ?? 'local_ai_news_aggregator')
+    .command({ ping: 1 });
+  console.log('[ok] MongoDB: remote access verified');
+} catch (error) {
+  failures.push('MongoDB');
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[failed] MongoDB: ${message}`);
+} finally {
+  await mongoClient?.close();
 }
 
 if (failures.length > 0) {
