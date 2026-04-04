@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-04-04T15:00:00.000Z",
+  "entries": [
+    {
+      "clusterId": "cluster_preview_1",
+      "canonicalUrl": "https://example.com/ai-breakthrough",
+      "citationCount": 2,
+      "headline": "New reasoning system released by AI lab",
+      "publishedAt": "2026-04-04T14:20:00.000Z",
+      "rank": 1,
+      "ranking": {
+        "baseScore": 0.67,
+        "corroborationScore": 0.05,
+        "freshnessScore": 0.18,
+        "sourceTypeScore": 0.06,
+        "totalScore": 0.96
+      },
+      "reasons": [
+        "Strong personal relevance.",
+        "Corroborated by 2 citations.",
+        "Fresh within the last day."
+      ],
+      "regions": ["global"],
+      "sourceCount": 2,
+      "sourceNames": ["My X Feed", "Hacker News Homepage"],
+      "summary": "A major AI lab released a new reasoning system.",
+      "topics": ["ai", "tech"]
+    },
+    {
+      "clusterId": "cluster_preview_2",
+      "canonicalUrl": "https://example.com/lantzville-council",
+      "citationCount": 1,
+      "headline": "Lantzville council approves waterfront plan",
+      "publishedAt": "2026-04-04T09:00:00.000Z",
+      "rank": 2,
+      "ranking": {
+        "baseScore": 0.56,
+        "corroborationScore": 0.03,
+        "freshnessScore": 0.15,
+        "sourceTypeScore": 0.05,
+        "totalScore": 0.79
+      },
+      "reasons": ["Strong personal relevance.", "Fresh within the last day."],
+      "regions": ["bc", "canada"],
+      "sourceCount": 1,
+      "sourceNames": ["BC News"],
+      "summary": "Lantzville council approved a waterfront plan update.",
+      "topics": ["bc", "canada"]
+    }
+  ]
+}

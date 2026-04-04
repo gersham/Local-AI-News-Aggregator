@@ -1,0 +1,27 @@
+{
+  "name": "@news-aggregator/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "briefing:preview": "tsx src/index.ts briefing:preview",
+    "briefing:audio": "tsx src/index.ts briefing:audio",
+    "briefing:deliver": "tsx src/index.ts briefing:deliver",
+    "elevenlabs:probe": "tsx src/index.ts elevenlabs:probe",
+    "audio:serve": "tsx src/index.ts audio:serve",
+    "sonos:probe": "tsx src/index.ts sonos:probe",
+    "sonos:play-briefing": "tsx src/index.ts sonos:play-briefing",
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@news-aggregator/core": "workspace:*",
+    "@news-aggregator/test-utils": "workspace:*",
+    "better-sqlite3": "12.8.0",
+    "dotenv": "17.4.0",
+    "sonos": "1.14.3",
+    "zod": "4.3.6"
+  }
+}

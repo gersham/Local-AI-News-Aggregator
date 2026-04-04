@@ -1,0 +1,16 @@
+{
+  "name": "@news-aggregator/test-utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@news-aggregator/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}

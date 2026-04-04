@@ -1,0 +1,58 @@
+{
+  "sources": [
+    {
+      "id": "x-my-feed",
+      "name": "My X Feed",
+      "type": "social",
+      "fetchMethod": "x-search",
+      "enabled": true,
+      "schedule": "*/15 * * * *",
+      "topics": ["ai", "tech", "singularity"],
+      "regions": ["global"],
+      "query": "AI tech singularity news",
+      "baseWeight": 0.95,
+      "trustWeight": 0.8
+    },
+    {
+      "id": "reddit-home",
+      "name": "My Reddit Feed",
+      "type": "social",
+      "fetchMethod": "browser-scrape",
+      "enabled": false,
+      "executionMode": "manual-opt-in",
+      "requiresAuthentication": true,
+      "schedule": "*/20 * * * *",
+      "topics": ["ai", "tech", "canada", "bc"],
+      "regions": ["global", "canada"],
+      "baseWeight": 0.9,
+      "trustWeight": 0.7,
+      "notes": "Deferred until manual browser testing. Do not include in the default v1 run set."
+    },
+    {
+      "id": "bc-news-search",
+      "name": "BC News",
+      "type": "watchlist",
+      "fetchMethod": "exa-search",
+      "enabled": true,
+      "schedule": "*/30 * * * *",
+      "topics": ["bc", "vancouver", "canada"],
+      "regions": ["bc", "canada"],
+      "query": "latest British Columbia Vancouver Canada news",
+      "baseWeight": 0.88,
+      "trustWeight": 0.85
+    },
+    {
+      "id": "hacker-news-home",
+      "name": "Hacker News Homepage",
+      "type": "news-site",
+      "fetchMethod": "http",
+      "enabled": true,
+      "schedule": "*/30 * * * *",
+      "topics": ["ai", "tech", "startups"],
+      "regions": ["global"],
+      "seedUrls": ["https://news.ycombinator.com/"],
+      "baseWeight": 0.78,
+      "trustWeight": 0.82
+    }
+  ]
+}
