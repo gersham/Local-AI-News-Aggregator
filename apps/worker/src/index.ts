@@ -42,7 +42,7 @@ export async function runWorkerEntryPoint(argv = process.argv.slice(2)) {
   const registryLegacyPath =
     process.env.SOURCE_REGISTRY_LEGACY_PATH ??
     process.env.SOURCE_REGISTRY_PATH ??
-    resolve(process.cwd(), '../../data/sources.json');
+    resolve(process.cwd(), '../../data/sources.seed.json');
   const exampleRegistryPath =
     process.env.SOURCE_REGISTRY_EXAMPLE_PATH ??
     resolve(process.cwd(), '../../config/sources.example.json');

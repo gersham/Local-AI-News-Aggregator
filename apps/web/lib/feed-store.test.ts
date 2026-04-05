@@ -27,7 +27,7 @@ describe('resolveFeedSnapshotPaths', () => {
     const root = join(tmpdir(), 'news-feed-paths');
     const paths = resolveFeedSnapshotPaths({ projectRoot: root });
 
-    expect(paths.legacyPath).toBe(join(root, 'data', 'feed-snapshot.json'));
+    expect(paths.legacyPath).toBe(join(root, 'data', 'feed-snapshot.seed.json'));
     expect(paths.examplePath).toBe(
       join(root, 'config', 'feed-preview.example.json'),
     );

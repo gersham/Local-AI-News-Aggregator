@@ -154,8 +154,8 @@ EXAMPLES of good markup usage:
 3. Filter out internal feed names — "My X Feed", "Hacker News Homepage" are NOT real publications
 4. Connect stories — note themes, contrasts, geographic links
 5. Weather should feel like a conversation, not a data dump
-6. Target 3-4 minutes of spoken content. The TOTAL script must be under 4500 characters including all tags and markup. Be ruthlessly concise — cut adjectives, cut filler, get to the point.
-7. Each story: 1-3 sentences max. Be TIGHT. One host introduces, the other reacts in a sentence or two. Move on.
+6. Target 6-8 minutes of spoken content. The TOTAL script should be around 8000-10000 characters including all tags and markup. Give international and tech stories proper coverage — 2-3 sentences each. Local stories can be briefer.
+7. Each story: 2-3 sentences. International and tech stories deserve more depth. Local stories can be 1-2 sentences. Move on once the point is made.
 8. A few natural exchanges between the hosts — don't force it, but don't make it two separate monologues either. 3-4 genuine reactions across the whole script is plenty.
 9. Sound like real people who enjoy working together — not a teleprompter being read`;
 
@@ -246,7 +246,12 @@ export async function buildMorningBriefing(input: {
   maxStories?: number;
   weather: DailyWeatherSummary;
 }): Promise<MorningBriefing> {
-  const allEntries = input.feedSnapshot.entries;
+  const sportsFilter = /\bsports?\b|\bnhl\b|\bnfl\b|\bnba\b|\bmlb\b|\bmls\b|\bfifa\b|\bpremier league\b|\bplayoff\b|\bplayoffs\b|\bsabres\b|\bcanucks\b|\bhockey\b|\bfootball\b|\bbaseball\b|\bbasketball\b|\bsoccer\b|\btennis\b|\bgolf\b|\bolympic/iu;
+  const allEntries = input.feedSnapshot.entries.filter(
+    (e) =>
+      !e.topics.some((t) => sportsFilter.test(t)) &&
+      !sportsFilter.test(e.headline),
+  );
   const spokenDate = formatSpokenDate(input.date, input.weather.timezone);
 
   // --- Pass 1: Curation (fast model) ---
@@ -260,16 +265,19 @@ Here are ALL available stories (${allEntries.length} total). Each has an [ID] yo
 
 ${buildBriefSummaries(allEntries)}
 
-Select 8-12 stories that make a compelling, balanced morning briefing. The content mix should be roughly:
+Select 12-16 stories that make a compelling, balanced morning briefing. The content mix MUST be:
 
-- ~1/4 LOCAL news (Lantzville, Vancouver Island, BC, or Canada) — this is home
-- ~1/4 INTERNATIONAL news (world affairs, geopolitics, global events)
-- ~1/4 TECH news (AI, technology, startups, science)
-- ~1/4 INTERESTING FILLER (science discoveries, culture, human interest, anything surprising or thought-provoking)
+- 2-3 LOCAL stories (Vancouver Island, BC, or Canada) — no more than this, keep local tight
+- 4-5 INTERNATIONAL stories (world affairs, geopolitics, conflicts, global events) — this is the BIGGEST category, the audience wants to know what's happening in the world
+- 3-4 TECH stories (AI, technology, startups, science)
+- 2-3 INTERESTING FILLER (science discoveries, culture, human interest, space, anything surprising)
+
+CRITICAL: Do NOT over-index on local news. The audience lives locally — they already know about fishing and poop bins. They want WORLD perspective. International and tech stories should dominate.
 
 Weather is always included separately — don't count it as a story slot.
 
 Additional rules:
+- ABSOLUTELY NO SPORTS stories — no hockey, football, basketball, soccer, baseball, tennis, golf, Olympics, NHL, NFL, NBA, MLS, FIFA, or any athletic competition. Skip them entirely.
 - NO duplicate stories about the same event — pick the best angle
 - Skip stale, trivial, or low-substance items
 - Lead with the most important or impactful story regardless of category
@@ -315,7 +323,7 @@ Write the complete script now. Use the exact segment format, include ElevenLabs 
     model: input.llm?.model ?? getPodcastModel(),
     system: SYSTEM_PROMPT,
     prompt: scriptPrompt,
-    maxOutputTokens: 4000,
+    maxOutputTokens: 8000,
   });
 
   const segments = parseSegments(rawScript);

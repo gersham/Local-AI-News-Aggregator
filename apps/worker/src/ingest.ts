@@ -31,7 +31,7 @@ export async function runIngestCommand(
     input.registryLegacyPath ??
     process.env.SOURCE_REGISTRY_LEGACY_PATH ??
     process.env.SOURCE_REGISTRY_PATH ??
-    resolve(projectRoot, 'data', 'sources.json');
+    resolve(projectRoot, 'data', 'sources.seed.json');
   const sourceRegistryExamplePath =
     input.registryExamplePath ??
     input.sourceRegistryExamplePath ??

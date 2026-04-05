@@ -27,7 +27,7 @@ describe('resolveSourceRegistryPaths', () => {
     const root = join(tmpdir(), 'news-registry-paths');
     const paths = resolveSourceRegistryPaths({ projectRoot: root });
 
-    expect(paths.legacyPath).toBe(join(root, 'data', 'sources.json'));
+    expect(paths.legacyPath).toBe(join(root, 'data', 'sources.seed.json'));
     expect(paths.examplePath).toBe(
       join(root, 'config', 'sources.example.json'),
     );

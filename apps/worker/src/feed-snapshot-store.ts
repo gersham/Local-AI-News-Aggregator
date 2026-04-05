@@ -27,7 +27,7 @@ export function resolveWorkerFeedSnapshotPaths(
       options.legacyPath ??
       process.env.FEED_SNAPSHOT_LEGACY_PATH ??
       process.env.FEED_SNAPSHOT_PATH ??
-      join(projectRoot, 'data', 'feed-snapshot.json'),
+      join(projectRoot, 'data', 'feed-snapshot.seed.json'),
   };
 }
 

@@ -59,7 +59,7 @@ export function resolveSourceRegistryPaths(
       options.legacyPath ??
       process.env.SOURCE_REGISTRY_LEGACY_PATH ??
       process.env.SOURCE_REGISTRY_PATH ??
-      join(projectRoot, 'data', 'sources.json'),
+      join(projectRoot, 'data', 'sources.seed.json'),
     examplePath:
       options.examplePath ??
       process.env.SOURCE_REGISTRY_EXAMPLE_PATH ??

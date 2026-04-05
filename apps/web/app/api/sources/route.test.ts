@@ -53,7 +53,7 @@ function seedRegistryRoot() {
     }),
   );
 
-  process.env.SOURCE_REGISTRY_LEGACY_PATH = join(root, 'data', 'sources.json');
+  process.env.SOURCE_REGISTRY_LEGACY_PATH = join(root, 'data', 'sources.seed.json');
   process.env.SOURCE_REGISTRY_EXAMPLE_PATH = examplePath;
 
   return root;
