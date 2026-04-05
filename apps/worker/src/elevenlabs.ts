@@ -42,11 +42,15 @@ export type ElevenLabsProbeResult = {
   };
 };
 
-function scoreVoice(voice: ElevenLabsVoice) {
+type VoiceRole = 'primary' | 'secondary';
+
+function scoreVoice(voice: ElevenLabsVoice, role: VoiceRole) {
   const name = voice.name?.toLowerCase() ?? '';
   const description = voice.description?.toLowerCase() ?? '';
   const accent = voice.labels?.accent?.toLowerCase() ?? '';
+  const gender = voice.labels?.gender?.toLowerCase() ?? '';
   const useCase = voice.labels?.use_case?.toLowerCase() ?? '';
+  const age = voice.labels?.age?.toLowerCase() ?? '';
   const allText = `${name} ${description} ${accent} ${useCase}`;
   const locales = (voice.verified_languages ?? []).map((language) => ({
     accent: language.accent?.toLowerCase() ?? '',
@@ -56,43 +60,7 @@ function scoreVoice(voice: ElevenLabsVoice) {
 
   let score = 0;
 
-  // Strong preference for British RP — ideal for anchor
-  if (
-    accent.includes('british') ||
-    locales.some(
-      (language) =>
-        language.accent.includes('british') || language.locale === 'en-gb',
-    )
-  ) {
-    score += 15;
-  }
-
-  // Scottish/Welsh/Northern — good for weather presenter variety
-  if (
-    accent.includes('scottish') ||
-    accent.includes('welsh') ||
-    accent.includes('northern') ||
-    locales.some(
-      (language) =>
-        language.accent.includes('scottish') ||
-        language.accent.includes('welsh'),
-    )
-  ) {
-    score += 12;
-  }
-
-  // Irish/Northern English — good for analyst/correspondent
-  if (
-    accent.includes('irish') ||
-    locales.some(
-      (language) =>
-        language.accent.includes('irish') || language.locale === 'en-ie',
-    )
-  ) {
-    score += 11;
-  }
-
-  // English language support
+  // English language support — baseline requirement
   if (
     description.includes('english') ||
     locales.some(
@@ -100,27 +68,59 @@ function scoreVoice(voice: ElevenLabsVoice) {
         language.language === 'en' || language.locale.startsWith('en-'),
     )
   ) {
-    score += 6;
-  }
-
-  // Strong bonus for news/narration/professional use cases
-  if (
-    name.includes('anchor') ||
-    name.includes('correspondent') ||
-    description.includes('news') ||
-    description.includes('narrat') ||
-    useCase.includes('narration') ||
-    useCase.includes('news') ||
-    useCase.includes('professional')
-  ) {
     score += 8;
   }
 
-  // Keyword bonus for BBC-appropriate descriptors
-  const bbcKeywords = ['british', 'english', 'bbc', 'news', 'narrator'];
-  for (const keyword of bbcKeywords) {
+  // Role-specific: primary = male English, secondary = female Irish
+  if (role === 'primary') {
+    if (gender === 'male') score += 12;
+    if (gender === 'female') score -= 10;
+    if (
+      accent.includes('british') ||
+      accent.includes('english') ||
+      locales.some((l) => l.accent.includes('british') || l.locale === 'en-gb')
+    ) {
+      score += 10;
+    }
+  } else {
+    if (gender === 'female') score += 12;
+    if (gender === 'male') score -= 10;
+    if (
+      accent.includes('irish') ||
+      locales.some((l) => l.accent.includes('irish') || l.locale === 'en-ie')
+    ) {
+      score += 10;
+    }
+  }
+
+  // Prefer conversational, warm, natural voices
+  const conversationalKeywords = ['conversational', 'warm', 'friendly', 'natural', 'casual', 'relaxed', 'engaging', 'pleasant'];
+  for (const keyword of conversationalKeywords) {
     if (allText.includes(keyword)) {
-      score += 2;
+      score += 4;
+    }
+  }
+
+  // Good use cases for a morning show
+  if (
+    useCase.includes('conversational') ||
+    useCase.includes('podcast') ||
+    useCase.includes('narration') ||
+    useCase.includes('news')
+  ) {
+    score += 6;
+  }
+
+  // Prefer younger/middle-aged voices
+  if (age.includes('young') || age.includes('middle')) {
+    score += 3;
+  }
+
+  // Penalize overly formal/stiff descriptors
+  const stuffyKeywords = ['formal', 'authoritative', 'commanding', 'deep', 'gravelly'];
+  for (const keyword of stuffyKeywords) {
+    if (allText.includes(keyword)) {
+      score -= 3;
     }
   }
 
@@ -131,13 +131,13 @@ function dedupeVoiceIds(ids: string[]) {
   return Array.from(new Set(ids));
 }
 
-function rankVoices(voices: ElevenLabsVoice[]) {
+function rankVoicesForRole(voices: ElevenLabsVoice[], role: VoiceRole) {
   return voices
     .filter(
       (voice): voice is ElevenLabsVoice & { voice_id: string } =>
         typeof voice.voice_id === 'string',
     )
-    .sort((left, right) => scoreVoice(right) - scoreVoice(left));
+    .sort((left, right) => scoreVoice(right, role) - scoreVoice(left, role));
 }
 
 export async function selectBriefingVoices(options: {
@@ -188,19 +188,31 @@ export async function selectBriefingVoices(options: {
   }
 
   const payload = (await response.json()) as { voices?: ElevenLabsVoice[] };
-  const voices = rankVoices(payload.voices ?? []);
-  const [first, second, third] = voices;
+  const allVoices = (payload.voices ?? []).filter(
+    (v): v is ElevenLabsVoice & { voice_id: string } =>
+      typeof v.voice_id === 'string',
+  );
 
-  if (!first?.voice_id) {
+  const primaryRanked = rankVoicesForRole(allVoices, 'primary');
+  const primaryVoice = primaryRanked[0];
+
+  if (!primaryVoice?.voice_id) {
     throw new Error(
       'No ElevenLabs voices were available for briefing synthesis.',
     );
   }
 
+  // Pick the best secondary voice that isn't the same as primary
+  const secondaryRanked = rankVoicesForRole(allVoices, 'secondary');
+  const secondaryVoice =
+    secondaryRanked.find((v) => v.voice_id !== primaryVoice.voice_id) ??
+    secondaryRanked[0] ??
+    primaryVoice;
+
   return {
-    primary: first.voice_id,
-    secondary: second?.voice_id ?? first.voice_id,
-    tertiary: third?.voice_id ?? second?.voice_id ?? first.voice_id,
+    primary: primaryVoice.voice_id,
+    secondary: secondaryVoice.voice_id,
+    tertiary: secondaryVoice.voice_id,
   };
 }
 
@@ -234,10 +246,25 @@ function buildDialogueInputs(
   briefing: MorningBriefing,
   voices: BriefingVoices,
 ): DialogueInput[] {
-  return briefing.segments.map((segment) => ({
-    text: segment.performanceText,
-    voice_id: getVoiceIdForSegment(voices, segment),
-  }));
+  // Merge consecutive segments from the same voice into single inputs
+  // to stay within ElevenLabs dialogue API limits
+  const merged: DialogueInput[] = [];
+
+  for (const segment of briefing.segments) {
+    const voiceId = getVoiceIdForSegment(voices, segment);
+    const last = merged[merged.length - 1];
+
+    if (last && last.voice_id === voiceId) {
+      last.text += `\n\n${segment.performanceText}`;
+    } else {
+      merged.push({
+        text: segment.performanceText,
+        voice_id: voiceId,
+      });
+    }
+  }
+
+  return merged;
 }
 
 export async function synthesizeBriefingAudio(options: {
@@ -276,31 +303,65 @@ export async function synthesizeBriefingAudio(options: {
     'utf8',
   );
 
-  const response = await fetchImplementation(
-    'https://api.elevenlabs.io/v1/text-to-dialogue?output_format=mp3_44100_128',
-    {
-      body: JSON.stringify({
-        apply_text_normalization: 'auto',
-        inputs: dialogueInputs,
-        language_code: 'en',
-        model_id: 'eleven_v3',
-      }),
-      headers: {
-        'content-type': 'application/json',
-        'xi-api-key': options.apiKey,
-      },
-      method: 'POST',
-    },
-  );
+  // Batch inputs to stay under ElevenLabs' 5000 character limit per request
+  const MAX_CHARS = 4800;
+  const batches: DialogueInput[][] = [];
+  let currentBatch: DialogueInput[] = [];
+  let currentChars = 0;
 
-  if (!response.ok) {
-    throw new Error(
-      `ElevenLabs dialogue synthesis failed with status ${response.status}. Dialogue plan saved to ${dialoguePlanPath}.`,
-    );
+  for (const input of dialogueInputs) {
+    const inputChars = input.text.length;
+    if (currentBatch.length > 0 && currentChars + inputChars > MAX_CHARS) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentChars = 0;
+    }
+    currentBatch.push(input);
+    currentChars += inputChars;
+  }
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  await writeFile(options.outputPath, bytes);
+  const audioChunks: Uint8Array[] = [];
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
+    const response = await fetchImplementation(
+      'https://api.elevenlabs.io/v1/text-to-dialogue?output_format=mp3_44100_128',
+      {
+        body: JSON.stringify({
+          apply_text_normalization: 'auto',
+          inputs: batch,
+          language_code: 'en',
+          model_id: 'eleven_v3',
+        }),
+        headers: {
+          'content-type': 'application/json',
+          'xi-api-key': options.apiKey,
+        },
+        method: 'POST',
+      },
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '(no body)');
+      throw new Error(
+        `ElevenLabs dialogue synthesis failed on batch ${i + 1}/${batches.length} with status ${response.status}: ${errorBody.slice(0, 500)}. Dialogue plan saved to ${dialoguePlanPath}.`,
+      );
+    }
+
+    audioChunks.push(new Uint8Array(await response.arrayBuffer()));
+  }
+
+  // Concatenate MP3 chunks (MP3 frames are independently decodable)
+  const totalLength = audioChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const combined = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of audioChunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+  await writeFile(options.outputPath, combined);
 
   return {
     dialoguePlanPath,
@@ -354,7 +415,7 @@ export async function probeElevenLabs(options: {
   const payload = (await voicesResponse.json()) as {
     voices?: ElevenLabsVoice[];
   };
-  const voices = rankVoices(payload.voices ?? []);
+  const voices = rankVoicesForRole(payload.voices ?? [], 'primary');
   const [first, second] = voices;
 
   if (!first?.voice_id) {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { POST } from './route';
+import { GET, POST } from './route';
 
 const { runPodcastGenerationCommandMock, writeActivityLogMock } = vi.hoisted(
   () => ({
@@ -19,37 +19,29 @@ vi.mock('../../../../lib/podcast-store', () => ({
 describe('POST /api/podcast/generate', () => {
   beforeEach(() => {
     runPodcastGenerationCommandMock.mockReset();
-    writeActivityLogMock.mockReset();
+    writeActivityLogMock.mockReset().mockResolvedValue(undefined);
   });
 
-  it('runs the same generation command used by the dashboard action', async () => {
-    runPodcastGenerationCommandMock.mockResolvedValue({
-      code: 0,
-      output: 'podcast ok',
-      stderr: '',
-      stdout: 'podcast ok',
-    });
+  it('returns immediately with started status', async () => {
+    runPodcastGenerationCommandMock.mockReturnValue(
+      new Promise(() => {}), // never resolves — simulates long-running generation
+    );
 
     const response = await POST();
     const payload = await response.json();
 
     expect(response.status).toBe(200);
+    expect(payload).toEqual({ ok: true, status: 'started' });
     expect(runPodcastGenerationCommandMock).toHaveBeenCalledWith({});
-    expect(payload.ok).toBe(true);
   });
+});
 
-  it('returns a 500 response when generation fails', async () => {
-    runPodcastGenerationCommandMock.mockResolvedValue({
-      code: 1,
-      output: 'bad output',
-      stderr: 'bad output',
-      stdout: '',
-    });
-
-    const response = await POST();
+describe('GET /api/podcast/generate', () => {
+  it('reports generation status', async () => {
+    const response = await GET();
     const payload = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(payload.error).toBe('Podcast generation failed.');
+    expect(response.status).toBe(200);
+    expect(payload).toHaveProperty('generating');
   });
 });

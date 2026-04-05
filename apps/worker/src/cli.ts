@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { savePodcastRunToMongo } from '@news-aggregator/core';
+import { savePodcastRunToMongo, writeActivityLog } from '@news-aggregator/core';
 import { buildHostedArtifactUrl, startAudioArtifactServer } from './audio-host';
 import type { MorningBriefing } from './briefing';
 import { buildMorningBriefing } from './briefing';
@@ -68,57 +68,115 @@ async function generateBriefingAudioRun(input: {
   synthesize: typeof synthesizeBriefingAudio;
   writeLine: (line: string) => void;
 }) {
+  const logError = (step: string, error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    writeActivityLog({
+      severity: 'error',
+      source: 'podcast',
+      message: `Failed at "${step}": ${message}`,
+      metadata: { step, stack },
+    }).catch(() => {});
+  };
+
   if (input.runIngestCommand) {
-    await input.runIngestCommand();
+    await writeActivityLog({ severity: 'info', source: 'podcast', message: 'Starting news ingestion...' }).catch(() => {});
+    try {
+      await input.runIngestCommand();
+    } catch (error) {
+      logError('ingestion', error);
+      throw error;
+    }
   }
 
-  const [feedSnapshot, weather] = await Promise.all([
-    input.loadFeedSnapshot(),
-    input.fetchWeather({
-      locationQuery: process.env.HOME_LOCATION_QUERY,
-    }),
-  ]);
-  const briefing = await input.buildBriefing({
-    date: feedSnapshot.generatedAt,
-    feedSnapshot,
-    weather,
-  });
+  await writeActivityLog({ severity: 'info', source: 'podcast', message: 'Loading feed snapshot and weather data...' }).catch(() => {});
+  let feedSnapshot: Awaited<ReturnType<typeof input.loadFeedSnapshot>>;
+  let weather: Awaited<ReturnType<typeof input.fetchWeather>>;
+  try {
+    [feedSnapshot, weather] = await Promise.all([
+      input.loadFeedSnapshot(),
+      input.fetchWeather({
+        locationQuery: process.env.HOME_LOCATION_QUERY,
+      }),
+    ]);
+  } catch (error) {
+    logError('load feed/weather', error);
+    throw error;
+  }
+
+  await writeActivityLog({ severity: 'info', source: 'podcast', message: `Building briefing script from ${feedSnapshot.entries.length} stories...` }).catch(() => {});
+  let briefing: MorningBriefing;
+  try {
+    briefing = await input.buildBriefing({
+      date: feedSnapshot.generatedAt,
+      feedSnapshot,
+      weather,
+    });
+  } catch (error) {
+    logError('build briefing script', error);
+    throw error;
+  }
 
   input.writeLine(briefing.transcript);
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
-    throw new Error(
+    const error = new Error(
       'ELEVENLABS_API_KEY is required for briefing generation. Ensure the repo-root .env is loaded.',
     );
+    logError('check API key', error);
+    throw error;
   }
 
   const outputPath = getDefaultOutputPath();
-  const voices = await input.selectVoices({
-    apiKey,
-    overrides: {
-      primary: process.env.ELEVENLABS_PRIMARY_VOICE_ID,
-      secondary: process.env.ELEVENLABS_SECONDARY_VOICE_ID,
-      tertiary: process.env.ELEVENLABS_TERTIARY_VOICE_ID,
-    },
-  });
-  const audioResult = await input.synthesize({
-    apiKey,
-    briefing,
-    outputPath,
-    voices,
-  });
+  await writeActivityLog({ severity: 'info', source: 'podcast', message: 'Selecting ElevenLabs voices...' }).catch(() => {});
+  let voices: Awaited<ReturnType<typeof input.selectVoices>>;
+  try {
+    voices = await input.selectVoices({
+      apiKey,
+      overrides: {
+        primary: process.env.ELEVENLABS_PRIMARY_VOICE_ID,
+        secondary: process.env.ELEVENLABS_SECONDARY_VOICE_ID,
+        tertiary: process.env.ELEVENLABS_TERTIARY_VOICE_ID,
+      },
+    });
+  } catch (error) {
+    logError('voice selection', error);
+    throw error;
+  }
+
+  await writeActivityLog({ severity: 'info', source: 'podcast', message: `Synthesizing audio (${briefing.segments.length} segments)...` }).catch(() => {});
+  let audioResult: Awaited<ReturnType<typeof input.synthesize>>;
+  try {
+    audioResult = await input.synthesize({
+      apiKey,
+      briefing,
+      outputPath,
+      voices,
+    });
+  } catch (error) {
+    logError('audio synthesis', error);
+    throw error;
+  }
+
   const generatedAt = new Date().toISOString();
   const persistPodcastRun = input.persistPodcastRun ?? savePodcastRunToMongo;
-  const savedRun = await persistPodcastRun({
-    audioPath: audioResult.outputPath,
-    date: generatedAt.slice(0, 10),
-    generatedAt,
-    transcript: briefing.transcript,
-    transcriptPath: audioResult.transcriptPath,
-  });
+  let savedRun: Awaited<ReturnType<typeof persistPodcastRun>>;
+  try {
+    savedRun = await persistPodcastRun({
+      audioPath: audioResult.outputPath,
+      date: generatedAt.slice(0, 10),
+      generatedAt,
+      transcript: briefing.transcript,
+      transcriptPath: audioResult.transcriptPath,
+    });
+  } catch (error) {
+    logError('save podcast run', error);
+    throw error;
+  }
 
+  await writeActivityLog({ severity: 'info', source: 'podcast', message: 'Podcast generation complete.', metadata: { runId: savedRun.run.runId, outputPath: audioResult.outputPath } }).catch(() => {});
   input.writeLine(`MP3 written to ${audioResult.outputPath}`);
 
   return {
@@ -391,14 +449,11 @@ export async function runWorkerCli(
     command === 'briefing:audio' ||
     command === 'briefing:generate'
   ) {
-    const shouldIngest = command === 'briefing:generate';
     const [feedSnapshot, weather] = await Promise.all([
-      shouldIngest ? Promise.resolve(undefined) : loadFeedSnapshot(),
-      shouldIngest
-        ? Promise.resolve(undefined)
-        : fetchWeather({
-            locationQuery: process.env.HOME_LOCATION_QUERY,
-          }),
+      loadFeedSnapshot(),
+      fetchWeather({
+        locationQuery: process.env.HOME_LOCATION_QUERY,
+      }),
     ]);
 
     if (command === 'briefing:preview') {
@@ -435,9 +490,6 @@ export async function runWorkerCli(
       fetchWeather,
       loadFeedSnapshot,
       persistPodcastRun: dependencies.persistPodcastRun,
-      runIngestCommand: shouldIngest
-        ? (dependencies.runIngestCommand ?? runIngestCommand)
-        : undefined,
       selectVoices,
       synthesize,
       writeLine,

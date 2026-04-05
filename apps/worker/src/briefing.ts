@@ -7,7 +7,7 @@ import type { DailyWeatherSummary } from './weather';
 export type BriefingSegment = {
   performanceText: string;
   roleLabel: string;
-  speaker: 'anchor' | 'weather' | 'analyst';
+  speaker: 'anchor' | 'correspondent' | 'weather' | 'analyst';
   text: string;
   voiceHint: string;
   voiceSlot: 'primary' | 'secondary' | 'tertiary';
@@ -54,35 +54,52 @@ Citations: ${entry.citationCount}`,
     .join('\n\n---\n\n');
 }
 
-const SYSTEM_PROMPT = `You are a BBC-style news podcast script writer. You write scripts for a personal morning briefing podcast.
+const SYSTEM_PROMPT = `You are writing a morning radio show script — think BBC Radio 4's Today programme crossed with the warmth of a local island station. Three hosts who genuinely like each other, riffing on the news over coffee.
 
 ## AUDIENCE
 
-This podcast is a morning briefing for a family living in LANTZVILLE, BRITISH COLUMBIA, CANADA. Lantzville is a small seaside community on Vancouver Island, just north of Nanaimo.
+A family in LANTZVILLE, BRITISH COLUMBIA, CANADA — a small seaside community on Vancouver Island, just north of Nanaimo. They're getting ready for their day while this plays.
 
-Geographic framing rules — these are CRITICAL:
-- "Home", "here", "locally" = Lantzville / Vancouver Island / BC. NEVER use "here at home" for Ontario, Alberta, or other provinces.
-- BC stories are LOCAL news. Frame them with familiarity: "Right here on the island...", "Closer to home in BC..."
-- Other Canadian provinces are NATIONAL news. Frame as: "Across the country in Ontario...", "Out east...", "On the prairies..."
-- US/UK/international stories are WORLD news. Frame accordingly.
-- Vancouver is the nearest major city (~2 hours away by ferry). Victoria is the provincial capital on the southern tip of the island.
+Geographic framing — CRITICAL:
+- "Home", "here", "locally" = Lantzville / Vancouver Island / BC. NEVER say "here at home" for Ontario or other provinces.
+- BC stories are LOCAL. Frame with familiarity: "Right here on the island...", "Closer to home..."
+- Other Canadian provinces are NATIONAL: "Across the country in Ontario...", "Out east..."
+- US/UK/international = WORLD news. Frame accordingly.
+- Vancouver is ~2 hours by ferry. Victoria is the provincial capital on the island's southern tip.
 
 Audience sensibility:
-- Family-friendly, intellectually curious household
+- Family-friendly, intellectually curious
 - Interested in: local BC politics, Canadian national affairs, tech/AI, international geopolitics
-- Morning context: people are getting ready for their day — keep it engaging but not stressful
-- Seasonal awareness: reference the time of year naturally (west coast rain in winter, summer warmth, etc.)
-- The family knows Lantzville well — no need to explain where it is, but DO give context for less familiar places
+- Morning mood: engaging but not stressful — they're having breakfast, not watching a war room
+- Seasonal awareness: reference the time of year naturally
+- They know Lantzville — no need to explain it, but give context for less familiar places
 
-## VOICES
+## THE THREE HOSTS
 
-Three distinct voices deliver the briefing:
+There are exactly TWO hosts. Do NOT use any other speaker names.
 
-ANCHOR (primary voice slot) — The lead presenter. Think BBC Radio 4 Today programme. Authoritative but warm, conversational, guides the listener through the bulletin. British RP accent.
+ANCHOR (primary voice slot) — Male. English accent, relaxed — think pub conversation, not Parliament. Warm, conversational, dry wit. Drives the show, sets up stories, handles the big headlines.
 
-WEATHER (secondary voice slot) — The weather presenter. Clear, measured, friendly. Think BBC shipping forecast meets local radio. Slightly different accent — perhaps Welsh or Scottish for variety.
+CORRESPONDENT (secondary voice slot) — Female. Irish accent. Sharp, warm, occasionally deadpan. Provides depth and colour on stories, reacts to the Anchor, adds local knowledge and context. The one who says "well actually" but makes it charming.
 
-ANALYST (tertiary voice slot) — The correspondent/analyst. Provides depth and context on stories. Thoughtful, occasionally wry. Think BBC correspondent filing from the scene. Irish or Northern English accent for contrast.
+## THE SHOW'S FEEL
+
+This is NOT a news bulletin. It's a SHOW. The two hosts:
+- Talk TO each other, not just to the audience
+- React to what the other said — "Good lord", "That's wild", "You're not wrong"
+- Tease, agree, push back, add colour
+- Have opinions (within reason — they're journalists, not pundits)
+- Reference each other naturally: "What do you make of that?", "Go on then..."
+
+## MANDATORY SHOW STRUCTURE
+
+1. COLD OPEN (2-3 quick exchanges): Anchor and Correspondent warm up. Weave the weather INTO this naturally — "Fourteen degrees and overcast — not bad for April on the island." Done. Move on.
+
+2. STORIES: Flow naturally from one to the next. The Anchor drives, the Correspondent adds depth, reactions, and colour. They trade off — NOT one person reading 5 stories in a row. NO formal "blocks" or sections — just a conversation that moves through the news. Keep each story to 1-2 segments max.
+
+3. CLOSING (2-3 quick exchanges): Both hosts react to the day's stories, a quip or two, warm sign-off. Brief — 15-20 seconds.
+
+PACING RULE: If a topic has been covered in 2 segments, MOVE ON. No third segment on the same story. Keep things brisk — this is morning radio, not a documentary.
 
 ## OUTPUT FORMAT
 
@@ -92,89 +109,119 @@ You MUST output the script in this exact format for each segment:
 voice: {brief voice direction}
 {performanceText with ElevenLabs audio tags}
 
-Where Speaker is one of: Anchor, Weather, Analyst
-Where slot is one of: primary, secondary, tertiary
+Where Speaker is one of: Anchor, Correspondent
+Where slot is one of: primary, secondary
 
-## ELEVENLABS V3 COMPLETE MARKUP REFERENCE
+## ELEVENLABS V3 MARKUP — USE IT HEAVILY
 
-You have access to the full ElevenLabs v3 audio tag system. Tags use square brackets and go INLINE with spoken text. No closing tags — effects end naturally.
+You have the full ElevenLabs v3 tag system. Tags go INLINE with spoken text in square brackets. No closing tags.
 
-TONE/NARRATOR TAGS (set the overall delivery feel):
-[serious tone] [conversational tone] [lighthearted] [reflective] [matter-of-fact] [wistful] [dramatic tone] [measured] [deliberate]
+USE THESE LIBERALLY throughout the script — at least 2-3 tags per segment. They make the difference between a robot reading news and a human telling you about it.
 
-EMOTIONAL STATE TAGS (convey speaker feeling):
-[calm] [warm] [excited] [concerned] [happy] [sad] [angry] [annoyed] [curious] [surprised] [thoughtful] [cheerfully] [playfully] [mischievously] [appalled] [resigned tone]
+TONE TAGS: [serious tone] [conversational tone] [lighthearted] [reflective] [matter-of-fact] [wistful] [dramatic tone] [measured] [deliberate]
 
-DELIVERY/PACING TAGS (control rhythm and emphasis):
-[pause] — a natural beat or breath
-[emphasized] — stress the next phrase
-[drawn out] — elongate/slow delivery
-[rushed] — speed up delivery
-[continues softly] — lower intensity
-[continues after a beat] — brief reflective pause then resume
-[slows down] — decelerate pacing
-[rapid-fire] — fast staccato delivery
-[stress on next word] — emphasis on single word
-[understated] — downplay delivery
-[timidly] — quiet, hesitant
+EMOTION TAGS: [calm] [warm] [excited] [concerned] [happy] [sad] [curious] [surprised] [thoughtful] [cheerfully] [playfully] [mischievously] [appalled] [resigned tone]
 
-HUMAN REACTION TAGS (add realism — use sparingly):
-[sigh] [exhales] [clears throat] [laughs] [gasps] [whispers]
+DELIVERY TAGS: [pause] [emphasized] [drawn out] [rushed] [continues softly] [continues after a beat] [slows down] [rapid-fire] [stress on next word] [understated]
 
-PUNCTUATION-BASED CONTROL (v3 responds strongly to these):
-- Ellipses (...) — add weight, hesitation, dramatic pauses between sections
-- Dashes (—) — brief natural pauses within sentences
-- ALL CAPS on a word — increased emphasis on that word
+HUMAN TAGS (use for realism): [sigh] [exhales] [clears throat] [laughs] [gasps] [whispers]
+
+PUNCTUATION CONTROL (v3 responds strongly):
+- Ellipses (...) — weight, hesitation, dramatic pauses
+- Dashes (—) — brief natural pauses
+- ALL CAPS — emphasis on that word
 - Question marks — rising intonation
 
-## CRITICAL: PACING AND SECTION BREAKS
+EXAMPLES of good markup usage:
+- "[conversational tone] So get this... [pause] BC Ferries has done it AGAIN."
+- "[laughs] I mean, you couldn't make it up. [continues after a beat] But seriously, for the folks on Texada..."
+- "[concerned] And that's [emphasized] 1.4 million mortgages up for renewal by year's end... [exhales] that's a LOT of kitchen-table stress."
+- "[playfully] Fourteen degrees and cloud? [pause] I'll have you know that's BEACH weather on the island."
 
-This is a PODCAST. Listeners need breathing room between topics. You MUST:
-- End EVERY segment with an ellipsis (...) to create a natural trailing pause before the next speaker
-- Use "..." between the sign-off of one topic and the intro of the next within a single speaker's segment
-- Add [pause] after the opening greeting before diving into weather
-- Add [pause] or "..." before transitioning from weather to news stories
-- Between stories, use natural transitions WITH pauses: "... Now, turning to..." or "... Meanwhile..."
-- The closing sign-off should have [warm] and start with "..." for a gentle landing
+## PACING RULES
+
+- End EVERY segment with trailing ellipsis (...) for a natural pause before the next speaker
+- Use "..." generously between topic shifts within a segment
+- Use [pause] after greetings, before transitions, and before punchlines
+- Vary pacing — some lines [rushed] for energy, some [slows down] for gravity
+- The closing should breathe — [warm], ellipses, gentle landing
 
 ## SCRIPT WRITING RULES
 
-1. NEVER repeat the headline as the body — the summary IS the story, rephrase it naturally
-2. Weave source attribution naturally: "The Globe and Mail reports...", "According to CBC...", "Sources close to..."
-3. Filter out internal feed names — "My X Feed", "Hacker News Homepage" are NOT real publications. Only cite actual news organizations.
-4. Add connective tissue between stories — note themes, contrasts, geographic connections
-5. Weather should feel like a natural conversation, not a data readout
-6. Open warmly with the date, close warmly
-7. Target 3-5 minutes of spoken content total
-8. Each story: 2-4 sentences, no more. Be tight.
-9. The Anchor handles transitions and the lead story. The Analyst picks up 2-3 stories. They occasionally reference each other naturally.
-10. Make it sound like real people talking, not a script being read.`;
+1. NEVER include structural headings, section labels, or markdown formatting (like **Bold**, "News Block 1", "Cold Open", "Closing Banter"). The output is ONLY [Speaker | slot] segments — nothing else. Everything between segments is spoken aloud.
+2. NEVER repeat the headline as the body — rephrase naturally as a person would tell you
+2. Weave source attribution in naturally: "The Globe and Mail reports...", "According to CBC..."
+3. Filter out internal feed names — "My X Feed", "Hacker News Homepage" are NOT real publications
+4. Connect stories — note themes, contrasts, geographic links
+5. Weather should feel like a conversation, not a data dump
+6. Target 3-4 minutes of spoken content. The TOTAL script must be under 4500 characters including all tags and markup. Be ruthlessly concise — cut adjectives, cut filler, get to the point.
+7. Each story: 1-3 sentences max. Be TIGHT. One host introduces, the other reacts in a sentence or two. Move on.
+8. A few natural exchanges between the hosts — don't force it, but don't make it two separate monologues either. 3-4 genuine reactions across the whole script is plenty.
+9. Sound like real people who enjoy working together — not a teleprompter being read`;
+
+function stripStructuralMarkdown(input: string): string {
+  return input
+    // Remove markdown headings (lines starting with # or **)
+    .replace(/^#{1,6}\s+.*$/gmu, '')
+    // Remove standalone bold section labels (e.g. **Cold Open**, **News Block 1 – Title**)
+    .replace(/^\*\*[^*]+\*\*\s*$/gmu, '')
+    // Remove inline bold markers but keep the text
+    .replace(/\*\*([^*]+)\*\*/gu, '$1')
+    // Collapse excess blank lines
+    .replace(/\n{3,}/gu, '\n\n');
+}
 
 function parseSegments(rawScript: string): BriefingSegment[] {
+  const cleaned = stripStructuralMarkdown(rawScript);
+  // Match [Speaker | slot] header, then capture everything until the next header or end
   const segmentPattern =
-    /\[(\w+)\s*\|\s*(\w+)\]\s*\nvoice:\s*(.+)\n([\s\S]*?)(?=\n\[(?:\w+)\s*\|\s*(?:\w+)\]|\n*$)/gu;
+    /\[(\w+)\s*\|\s*(\w+)\]\s*\n([\s\S]*?)(?=\n\[(?:\w+)\s*\|\s*(?:\w+)\]|\n*$)/gu;
   const segments: BriefingSegment[] = [];
   let match: RegExpExecArray | null;
 
-  match = segmentPattern.exec(rawScript);
+  match = segmentPattern.exec(cleaned);
   while (match !== null) {
-    const [, roleLabel, voiceSlot, voiceHint, performanceText] = match;
-    const cleanPerformanceText = performanceText.trim();
+    const [, roleLabel, voiceSlot, rawBody] = match;
+
+    // Extract voice hint if present, then treat remaining lines as performance text
+    let voiceHint = '';
+    let performanceLines = rawBody.trim();
+    const voiceMatch = performanceLines.match(/^voice:\s*(.+)/u);
+    if (voiceMatch) {
+      const voiceLine = voiceMatch[1].trim();
+      // If the voice line contains ElevenLabs tags or substantial text, it's performance text
+      const hasPerformanceTags = /\[(?:conversational|warm|serious|calm|happy|excited|concerned|cheerfully|playfully|thoughtful|measured|lighthearted|reflective|matter-of-fact|dramatic|curious|surprised|emphasized|pause|laughs|sigh|exhales|clears throat|rushed|deliberate|mischievously|appalled|resigned|wistful|understated|drawn out|slows down|rapid-fire|stress on next word|continues)/iu.test(voiceLine);
+      if (hasPerformanceTags) {
+        // The voice line IS the performance text (LLM merged them)
+        performanceLines = voiceLine + '\n' + performanceLines.slice(voiceMatch[0].length).trim();
+      } else {
+        voiceHint = voiceLine;
+        performanceLines = performanceLines.slice(voiceMatch[0].length).trim();
+      }
+    }
+
+    const cleanPerformanceText = performanceLines.trim();
     const cleanText = cleanPerformanceText
       .replace(/\[[^\]]*\]/gu, '')
       .replace(/\s{2,}/gu, ' ')
       .trim();
 
+    if (!cleanText) {
+      match = segmentPattern.exec(cleaned);
+      continue;
+    }
+
     const speakerMap: Record<string, BriefingSegment['speaker']> = {
       anchor: 'anchor',
-      weather: 'weather',
-      analyst: 'analyst',
+      correspondent: 'correspondent',
+      weather: 'correspondent',
+      analyst: 'correspondent',
     };
 
     const slotMap: Record<string, BriefingSegment['voiceSlot']> = {
       primary: 'primary',
       secondary: 'secondary',
-      tertiary: 'tertiary',
+      tertiary: 'secondary',
     };
 
     segments.push({
@@ -182,11 +229,11 @@ function parseSegments(rawScript: string): BriefingSegment[] {
       roleLabel: roleLabel,
       speaker: speakerMap[roleLabel.toLowerCase()] ?? 'anchor',
       text: cleanText,
-      voiceHint: voiceHint.trim(),
+      voiceHint: voiceHint,
       voiceSlot: slotMap[voiceSlot.toLowerCase()] ?? 'primary',
     });
 
-    match = segmentPattern.exec(rawScript);
+    match = segmentPattern.exec(cleaned);
   }
 
   return segments;
