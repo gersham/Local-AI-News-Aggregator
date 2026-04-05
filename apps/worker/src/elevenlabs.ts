@@ -46,6 +46,8 @@ function scoreVoice(voice: ElevenLabsVoice) {
   const name = voice.name?.toLowerCase() ?? '';
   const description = voice.description?.toLowerCase() ?? '';
   const accent = voice.labels?.accent?.toLowerCase() ?? '';
+  const useCase = voice.labels?.use_case?.toLowerCase() ?? '';
+  const allText = `${name} ${description} ${accent} ${useCase}`;
   const locales = (voice.verified_languages ?? []).map((language) => ({
     accent: language.accent?.toLowerCase() ?? '',
     language: language.language?.toLowerCase() ?? '',
@@ -54,6 +56,7 @@ function scoreVoice(voice: ElevenLabsVoice) {
 
   let score = 0;
 
+  // Strong preference for British RP — ideal for anchor
   if (
     accent.includes('british') ||
     locales.some(
@@ -61,9 +64,24 @@ function scoreVoice(voice: ElevenLabsVoice) {
         language.accent.includes('british') || language.locale === 'en-gb',
     )
   ) {
+    score += 15;
+  }
+
+  // Scottish/Welsh/Northern — good for weather presenter variety
+  if (
+    accent.includes('scottish') ||
+    accent.includes('welsh') ||
+    accent.includes('northern') ||
+    locales.some(
+      (language) =>
+        language.accent.includes('scottish') ||
+        language.accent.includes('welsh'),
+    )
+  ) {
     score += 12;
   }
 
+  // Irish/Northern English — good for analyst/correspondent
   if (
     accent.includes('irish') ||
     locales.some(
@@ -71,9 +89,10 @@ function scoreVoice(voice: ElevenLabsVoice) {
         language.accent.includes('irish') || language.locale === 'en-ie',
     )
   ) {
-    score += 10;
+    score += 11;
   }
 
+  // English language support
   if (
     description.includes('english') ||
     locales.some(
@@ -84,13 +103,25 @@ function scoreVoice(voice: ElevenLabsVoice) {
     score += 6;
   }
 
+  // Strong bonus for news/narration/professional use cases
   if (
     name.includes('anchor') ||
     name.includes('correspondent') ||
     description.includes('news') ||
-    description.includes('narrat')
+    description.includes('narrat') ||
+    useCase.includes('narration') ||
+    useCase.includes('news') ||
+    useCase.includes('professional')
   ) {
-    score += 4;
+    score += 8;
+  }
+
+  // Keyword bonus for BBC-appropriate descriptors
+  const bbcKeywords = ['british', 'english', 'bbc', 'news', 'narrator'];
+  for (const keyword of bbcKeywords) {
+    if (allText.includes(keyword)) {
+      score += 2;
+    }
   }
 
   return score;

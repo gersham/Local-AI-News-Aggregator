@@ -13,6 +13,7 @@ import {
   saveIngestRunToMongo,
   saveStoriesToMongo,
   saveStoryClustersToMongo,
+  writeActivityLog,
 } from '@news-aggregator/core';
 import { load } from 'cheerio';
 import { XMLParser } from 'fast-xml-parser';
@@ -29,6 +30,7 @@ import {
   type ExecutedPublicSourceFetch,
   executePublicSourceFetchPlan,
 } from './public-sources';
+import { summarizeArticleBatch } from './summarize';
 import {
   buildXSearchPlans,
   executeXSearchPlan,
@@ -757,6 +759,17 @@ export async function runDiscoveryEnrichmentOrchestrator(
   const publicPlans = buildPublicSourceFetchPlans(input.registry);
   const publicArtifacts = await Promise.all(
     publicPlans.map(async (plan) => {
+      const planSource = sourceIndex.get(plan.sourceId);
+      writeActivityLog({
+        severity: 'info',
+        source: 'ingest',
+        message: `Fetching source: ${planSource?.name ?? plan.sourceId}`,
+        metadata: {
+          sourceId: plan.sourceId,
+          fetchMethod: planSource?.fetchMethod,
+          target: plan.target,
+        },
+      }).catch(() => {});
       const artifact = await executePublicSourceFetchPlan(plan, {
         fetchText: dependencies.fetchText,
         now,
@@ -810,6 +823,13 @@ export async function runDiscoveryEnrichmentOrchestrator(
   const xPlans = buildXSearchPlans(input.registry);
   const xSearchResults = await Promise.all(
     xPlans.map(async (plan) => {
+      const xSource = sourceIndex.get(plan.sourceId);
+      writeActivityLog({
+        severity: 'info',
+        source: 'ingest',
+        message: `X search: ${xSource?.name ?? plan.sourceId}`,
+        metadata: { sourceId: plan.sourceId, query: plan.query },
+      }).catch(() => {});
       const executePlan = dependencies.executeXSearchPlan ?? executeXSearchPlan;
 
       if (!dependencies.executeXSearchPlan && !input.xaiApiKey) {
@@ -862,6 +882,32 @@ export async function runDiscoveryEnrichmentOrchestrator(
       topics: story.topics,
     }),
   );
+
+  // LLM summarization — replace extractive summaries with editorial ones
+  if (process.env.XAI_API_KEY) {
+    const storiesWithBody = stories.filter((s) => s.bodyText);
+    if (storiesWithBody.length > 0) {
+      const summaryResults = await summarizeArticleBatch(
+        storiesWithBody.map((s) => ({
+          title: s.title,
+          sourceName: s.sourceName,
+          bodyText: s.bodyText,
+          rawSummary: s.summary,
+          topics: s.topics,
+          regions: s.regions,
+        })),
+      );
+
+      for (let i = 0; i < storiesWithBody.length; i++) {
+        const result = summaryResults[i];
+        storiesWithBody[i].summary = result.summary;
+        if (result.topics.length > 0) storiesWithBody[i].topics = result.topics;
+        if (result.regions.length > 0)
+          storiesWithBody[i].regions = result.regions;
+      }
+    }
+  }
+
   const clusters = assignClusterIdsToStories(clusterStories(stories));
   const storiesWithClusterIds = clusters.flatMap((cluster) => cluster.stories);
 
@@ -910,7 +956,7 @@ export async function runDiscoveryEnrichmentOrchestrator(
         storyIds: storiesWithClusterIds.map((story) => story.storyId),
       }));
 
-  return {
+  const summary: IngestionSummary = {
     clusterCount: clusters.length,
     discoveryCount: candidates.length,
     enrichedStoryCount: storiesWithClusterIds.length,
@@ -919,5 +965,21 @@ export async function runDiscoveryEnrichmentOrchestrator(
     rawArtifactIds,
     runId: persistedRun.runId,
     storyCount: storiesWithClusterIds.length,
-  } satisfies IngestionSummary;
+  };
+
+  writeActivityLog({
+    severity: 'info',
+    source: 'ingest',
+    message: `Ingestion complete: ${summary.discoveryCount} discovered, ${summary.storyCount} stories, ${summary.clusterCount} clusters`,
+    metadata: {
+      runId: summary.runId,
+      discoveryCount: summary.discoveryCount,
+      storyCount: summary.storyCount,
+      clusterCount: summary.clusterCount,
+      feedEntryCount: feedSnapshot.entries.length,
+      sourcesConsulted: publicPlans.length + xPlans.length,
+    },
+  }).catch(() => {});
+
+  return summary;
 }

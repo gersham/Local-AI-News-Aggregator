@@ -5,6 +5,8 @@ export {
   sourceRegistrySchema,
 } from './config';
 export type {
+  ActivityLogEntry,
+  ActivityLogSeverity,
   FeedEntry,
   FeedSnapshot,
   PodcastRun,
@@ -14,6 +16,8 @@ export type {
   StoryCluster,
 } from './domain';
 export {
+  activityLogEntrySchema,
+  activityLogSeveritySchema,
   defaultOperationalSettings,
   feedEntrySchema,
   feedSnapshotSchema,
@@ -29,8 +33,10 @@ export {
 } from './domain';
 export type { MongoConnectionOptions } from './mongo-store';
 export {
+  clearActivityLogs,
   deletePodcastRunFromMongo,
   getMongoCollectionNames,
+  loadActivityLogs,
   loadCachedArticlesFromMongo,
   loadFeedSnapshotFromMongo,
   loadPodcastRunsFromMongo,
@@ -46,6 +52,7 @@ export {
   saveStoriesToMongo,
   saveStoryClustersToMongo,
   updateSourceDefinitionInMongo,
+  writeActivityLog,
 } from './mongo-store';
 export {
   clusterStories,

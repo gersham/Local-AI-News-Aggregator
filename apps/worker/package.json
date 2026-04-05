@@ -19,9 +19,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@ai-sdk/xai": "^3.0.77",
     "@news-aggregator/core": "workspace:*",
     "@news-aggregator/test-utils": "workspace:*",
-    "better-sqlite3": "12.8.0",
+    "ai": "^6.0.146",
     "cheerio": "^1.2.0",
     "dotenv": "17.4.0",
     "fast-xml-parser": "^5.5.10",

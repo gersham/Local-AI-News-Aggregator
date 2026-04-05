@@ -131,6 +131,22 @@ export const podcastRunSchema = z.object({
   audioPath: z.string().optional(),
 });
 
+export const activityLogSeveritySchema = z.enum([
+  'debug',
+  'info',
+  'warn',
+  'error',
+]);
+
+export const activityLogEntrySchema = z.object({
+  entryId: z.string(),
+  timestamp: z.iso.datetime(),
+  severity: activityLogSeveritySchema,
+  source: z.string(),
+  message: z.string(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const starterTopics = [
   { slug: 'x-feed', label: 'My X Feed', scope: 'personal signal' },
   { slug: 'reddit-feed', label: 'My Reddit Feed', scope: 'logged-in social' },
@@ -184,3 +200,5 @@ export type FeedSnapshot = z.infer<typeof feedSnapshotSchema>;
 export type StoryCluster = z.infer<typeof storyClusterSchema>;
 export type Story = z.infer<typeof storySchema>;
 export type PodcastRun = z.infer<typeof podcastRunSchema>;
+export type ActivityLogEntry = z.infer<typeof activityLogEntrySchema>;
+export type ActivityLogSeverity = z.infer<typeof activityLogSeveritySchema>;

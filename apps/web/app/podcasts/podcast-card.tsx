@@ -32,6 +32,7 @@ export function PodcastCard({
 }) {
   const [showTranscript, setShowTranscript] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const router = useRouter();
 
   async function handleDelete() {
@@ -39,14 +40,20 @@ export function PodcastCard({
     setDeleting(true);
 
     try {
-      await fetch(`/api/podcasts/${run.runId}/delete`, { method: 'POST' });
+      const res = await fetch(`/api/podcasts/${run.runId}/delete`, { method: 'POST' });
+      if (res.ok) {
+        setDeleted(true);
+        router.refresh();
+        return;
+      }
+      console.error('Delete failed:', res.status);
     } catch (error) {
       console.error('Delete failed:', error);
-    } finally {
-      setDeleting(false);
-      router.refresh();
     }
+    setDeleting(false);
   }
+
+  if (deleted) return null;
 
   return (
     <Card>

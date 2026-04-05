@@ -11,7 +11,7 @@
 
 ## Phase 1: Interview And Inputs
 
-- [ ] Confirm the exact source roster for v1.
+- [ ] Finalize the exact v1 source roster and source weights after live feed-quality testing.
 - [x] Confirm target Sonos room(s) and playback behavior.
 - [x] Confirm the morning briefing schedule.
 - [x] Confirm the briefing opens with Lantzville, BC weather.
@@ -44,7 +44,7 @@
 - [x] Slice 9: podcast story selection and spoken script generation.
 - [x] Slice 10: ElevenLabs audio generation and stitching.
 - [x] Slice 11: Sonos playback orchestration and restore behavior.
-- [ ] Slice 12: end-to-end scheduled run.
+- [x] Replace in-repo scheduling with one-shot worker commands intended for an external scheduler.
 
 - [x] Add CLI debug mode for transcript preview.
 - [x] Add production-script output with voice-role and delivery cues for the briefing CLI.
@@ -58,12 +58,22 @@
 - [x] Add a one-shot `ingest:run` command for live source discovery, Exa-first enrichment, artifact capture, and feed-snapshot refresh.
 - [x] Persist normalized stories and clusters as first-class MongoDB collections during ingest runs.
 - [x] Persist generated podcast runs in MongoDB and expose them through a `/podcasts` archive page.
+- [x] Add a dashboard control to generate podcasts without Sonos playback.
+- [x] Add a podcast archive UI with Mongo-backed history and MP3 download links.
 
 ## Quality Gates
 
-- [ ] Each feature starts with a failing automated test.
-- [ ] Every external boundary has runtime validation.
-- [ ] No secrets are checked into source control.
-- [ ] No workaround code lands for missing access or missing tooling.
-- [ ] Every major run path emits operational logs and artifacts.
+- [ ] Keep the test-first discipline in place for remaining feature slices.
+- [ ] Keep runtime validation at every external boundary as new integrations are added.
+- [ ] Keep secrets out of source control.
+- [ ] Keep the no-workaround rule in place for missing access or missing tooling.
+- [ ] Expand operational logging while preserving the current artifact coverage on major run paths.
 - [x] Replace file-backed state with MongoDB-backed persistence for source registry, feed snapshot, discovery artifacts, ingest runs, stories, and clusters.
+
+## Remaining Product Work
+
+- [ ] Improve article-body cleanup so summaries and briefing copy use the first strong factual sentence instead of page chrome.
+- [ ] Tighten source-specific relevance gates so regional/topic feeds admit fewer off-target stories.
+- [ ] Add operator feedback signals and learned ranking on top of persisted stories and clusters.
+- [ ] Decide whether to implement browser-auth collection later through dedicated automation sessions only, or also support Chrome remote debugging.
+- [ ] Re-enable and tune additional sources beyond the current Canada-only live test configuration once feed quality is acceptable.

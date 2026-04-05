@@ -28,7 +28,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "dotenv": "17.4.0",
-    "mongodb": "^6.21.0",
+    "mongodb": "^7.1.1",
     "mongodb-memory-server": "^11.0.1",
     "tsx": "4.21.0",
     "typescript": "6.0.2",

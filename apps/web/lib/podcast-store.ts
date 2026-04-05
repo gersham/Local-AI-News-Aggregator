@@ -1,14 +1,12 @@
-import { execFile } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import {
   deletePodcastRunFromMongo,
   loadPodcastRunsFromMongo,
   type PodcastRun,
 } from '@news-aggregator/core';
+import { runWorkerCommand } from './worker-command';
 
-const execFileAsync = promisify(execFile);
 const DEFAULT_PROJECT_ROOT = resolve(process.cwd(), '../..');
 
 export async function loadPodcastRuns(
@@ -36,17 +34,9 @@ export async function loadLatestPodcastRun(
 export async function runPodcastGenerationCommand(options: {
   projectRoot?: string;
 }) {
-  const projectRoot = options.projectRoot ?? DEFAULT_PROJECT_ROOT;
-
-  return execFileAsync(
-    'pnpm',
-    ['--filter', '@news-aggregator/worker', 'briefing:generate'],
-    {
-      cwd: projectRoot,
-      env: process.env,
-      maxBuffer: 1024 * 1024 * 20,
-    },
-  );
+  return runWorkerCommand('briefing:generate', {
+    projectRoot: options.projectRoot ?? DEFAULT_PROJECT_ROOT,
+  });
 }
 
 export async function readPodcastAudioFile(run: PodcastRun) {

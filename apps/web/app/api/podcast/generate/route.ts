@@ -1,49 +1,48 @@
-import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { writeActivityLog } from '@news-aggregator/core';
 import { NextResponse } from 'next/server';
-
-const projectRoot = resolve(process.cwd(), '../..');
+import { runPodcastGenerationCommand } from '../../../../lib/podcast-store';
 
 export async function POST() {
   try {
-    const result = await new Promise<{ code: number; output: string }>(
-      (resolvePromise, reject) => {
-        const chunks: string[] = [];
-        const child = spawn(
-          'pnpm',
-          ['--filter', '@news-aggregator/worker', 'start', 'briefing:audio'],
-          {
-            cwd: projectRoot,
-            env: { ...process.env },
-            stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        );
+    await writeActivityLog({
+      severity: 'info',
+      source: 'podcast',
+      message: 'Starting podcast generation.',
+    });
 
-        child.stdout.on('data', (data: Buffer) => {
-          chunks.push(data.toString());
-        });
-
-        child.stderr.on('data', (data: Buffer) => {
-          chunks.push(data.toString());
-        });
-
-        child.on('error', reject);
-
-        child.on('close', (code) => {
-          resolvePromise({ code: code ?? 1, output: chunks.join('') });
-        });
-      },
-    );
+    const result = await runPodcastGenerationCommand({});
 
     if (result.code !== 0) {
+      await writeActivityLog({
+        severity: 'error',
+        source: 'podcast',
+        message: 'Podcast generation failed.',
+        metadata: { output: result.output.slice(0, 2000) },
+      });
+
       return NextResponse.json(
         { error: 'Podcast generation failed.', output: result.output },
         { status: 500 },
       );
     }
 
+    await writeActivityLog({
+      severity: 'info',
+      source: 'podcast',
+      message: 'Podcast generated successfully.',
+    });
+
     return NextResponse.json({ ok: true, output: result.output });
   } catch (error) {
+    await writeActivityLog({
+      severity: 'error',
+      source: 'podcast',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Unexpected podcast generation failure.',
+    }).catch(() => {});
+
     return NextResponse.json(
       {
         error:

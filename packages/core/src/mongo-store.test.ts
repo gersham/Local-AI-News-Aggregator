@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  deletePodcastRunFromMongo,
   getMongoCollectionNames,
   loadCachedArticlesFromMongo,
   loadFeedSnapshotFromMongo,
@@ -508,5 +509,45 @@ describe('podcast run mongo storage', () => {
     expect(state.storageTarget).toContain(
       getMongoCollectionNames().podcastRuns,
     );
+  });
+
+  it('removes podcast artifacts when deleting a stored run', async () => {
+    const root = join(tmpdir(), `news-mongo-podcast-delete-${Date.now()}`);
+    tempRoots.push(root);
+    mkdirSync(root, { recursive: true });
+
+    const audioPath = join(root, 'morning-briefing.mp3');
+    const transcriptPath = join(root, 'morning-briefing.txt');
+    const dialoguePath = join(root, 'morning-briefing.dialogue.json');
+
+    writeFileSync(audioPath, 'audio');
+    writeFileSync(transcriptPath, 'transcript');
+    writeFileSync(dialoguePath, '{}');
+
+    const mongo = await createMongoTestContext();
+    cleanupTasks.push(mongo.cleanup);
+
+    await savePodcastRunToMongo(
+      {
+        audioPath,
+        date: '2026-04-04',
+        generatedAt: '2026-04-04T15:00:00.000Z',
+        runId: 'run_delete_me',
+        transcriptPath,
+      },
+      {
+        client: mongo.client,
+        dbName: mongo.dbName,
+      },
+    );
+
+    await deletePodcastRunFromMongo('run_delete_me', {
+      client: mongo.client,
+      dbName: mongo.dbName,
+    });
+
+    expect(existsSync(audioPath)).toBe(false);
+    expect(existsSync(transcriptPath)).toBe(false);
+    expect(existsSync(dialoguePath)).toBe(false);
   });
 });

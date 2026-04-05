@@ -1,6 +1,13 @@
 'use client';
 
-import { Database, LayoutDashboard, Newspaper, Radio, Rss } from 'lucide-react';
+import {
+  Database,
+  LayoutDashboard,
+  Newspaper,
+  Radio,
+  Rss,
+  ScrollText,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -10,6 +17,7 @@ const navItems = [
   { href: '/feed', label: 'Feed', icon: Newspaper },
   { href: '/podcasts', label: 'Podcasts', icon: Radio },
   { href: '/sources', label: 'Sources', icon: Database },
+  { href: '/logs', label: 'Logs', icon: ScrollText },
 ];
 
 export function Navigation() {

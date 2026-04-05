@@ -25,6 +25,7 @@ const mongoClientPromiseByUri = new Map<string, Promise<MongoClient>>();
 const articleCacheTtlDays = 30;
 
 const collectionNames = {
+  activityLog: 'activity_log',
   appState: 'app_state',
   articleCache: 'article_cache',
   discoveryArtifacts: 'discovery_artifacts',
@@ -116,6 +117,16 @@ type PodcastRunDocument = {
   transcript?: string;
   transcriptPath?: string;
   updatedAt: string;
+};
+
+type ActivityLogDocument = {
+  _id?: ObjectId;
+  entryId: string;
+  timestamp: string;
+  severity: string;
+  source: string;
+  message: string;
+  metadata?: Record<string, unknown>;
 };
 
 type StoryDocument = {
@@ -364,6 +375,29 @@ async function getPodcastRunsCollection(db: Db) {
       {
         name: 'podcast_runs_date_generated_at',
       },
+    ),
+  ]);
+
+  return collection;
+}
+
+async function getActivityLogCollection(db: Db) {
+  const collection = db.collection<ActivityLogDocument>(
+    collectionNames.activityLog,
+  );
+
+  await Promise.all([
+    collection.createIndex(
+      { timestamp: -1 },
+      { name: 'activity_log_timestamp' },
+    ),
+    collection.createIndex(
+      { severity: 1, timestamp: -1 },
+      { name: 'activity_log_severity_timestamp' },
+    ),
+    collection.createIndex(
+      { source: 1, timestamp: -1 },
+      { name: 'activity_log_source_timestamp' },
     ),
   ]);
 
@@ -1078,10 +1112,113 @@ export async function deletePodcastRunFromMongo(
   runId: string,
   options: MongoConnectionOptions = {},
 ) {
+  const { unlink } = await import('node:fs/promises');
   const db = await getMongoDb(options);
   const collection = await getPodcastRunsCollection(db);
+  const document = await collection.findOne({ runId });
+
+  if (document) {
+    const artifactPaths = new Set<string>();
+
+    if (document.audioPath) {
+      artifactPaths.add(document.audioPath);
+      if (document.audioPath.endsWith('.mp3')) {
+        artifactPaths.add(
+          document.audioPath.replace(/\.mp3$/u, '.dialogue.json'),
+        );
+      }
+    }
+
+    if (document.transcriptPath) {
+      artifactPaths.add(document.transcriptPath);
+    }
+
+    await Promise.all(
+      [...artifactPaths].map(async (artifactPath) =>
+        unlink(artifactPath).catch(() => {}),
+      ),
+    );
+  }
 
   await collection.deleteOne({ runId });
 
   return { deleted: true, runId };
+}
+
+export async function writeActivityLog(
+  entry: {
+    severity: string;
+    source: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+  },
+  options: MongoConnectionOptions = {},
+) {
+  const db = await getMongoDb(options);
+  const collection = await getActivityLogCollection(db);
+  const entryId = new ObjectId().toString();
+  const timestamp = new Date().toISOString();
+
+  await collection.insertOne({
+    entryId,
+    timestamp,
+    severity: entry.severity,
+    source: entry.source,
+    message: entry.message,
+    metadata: entry.metadata,
+  });
+
+  return { entryId, timestamp };
+}
+
+export async function loadActivityLogs(
+  options: MongoConnectionOptions & {
+    limit?: number;
+    severity?: string;
+    since?: string;
+    source?: string;
+  } = {},
+) {
+  const db = await getMongoDb(options);
+  const collection = await getActivityLogCollection(db);
+  const filter: Record<string, unknown> = {};
+
+  if (options.severity) {
+    filter.severity = options.severity;
+  }
+
+  if (options.source) {
+    filter.source = options.source;
+  }
+
+  if (options.since) {
+    filter.timestamp = { $gt: options.since };
+  }
+
+  const documents = await collection
+    .find(filter)
+    .sort({ timestamp: -1 })
+    .limit(options.limit ?? 200)
+    .toArray();
+
+  return {
+    entries: documents.map((doc) => ({
+      entryId: doc.entryId,
+      timestamp: doc.timestamp,
+      severity: doc.severity,
+      source: doc.source,
+      message: doc.message,
+      metadata: doc.metadata,
+    })),
+    storageTarget: getStorageTarget(options, collectionNames.activityLog),
+  };
+}
+
+export async function clearActivityLogs(options: MongoConnectionOptions = {}) {
+  const db = await getMongoDb(options);
+  const collection = await getActivityLogCollection(db);
+
+  await collection.deleteMany({});
+
+  return { cleared: true };
 }
